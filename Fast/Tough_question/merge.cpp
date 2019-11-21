@@ -17,29 +17,17 @@ void my_merge(int A[],int B[],int C[],int m,int n){
 			C_index++;
 		}
 	}
-	// at least one array has been copied so far
-	cout << "A_index" << A_index << endl;
-	cout << "B_index" << B_index << endl;
-	cout << "C_index" << C_index << endl;
-	//if(A_index==m){
-		// A has been copied fully
-		// copy remaining elements into c
+
 		for(int i=A_index; i < m; i++){
 			C[C_index] = A[A_index];
 			C_index++;
 			A_index++;
 		}
-	//}
-	//else{
-		// B has been copied fully
-		// copy remaining elements into c
-		//cout << "B_index" << B_index << endl;
 		for(int i=B_index; i < n; i++){
 			C[C_index] = B[B_index];
 			C_index++;
 			B_index++;
 		}
-	//}
 	C[C_index]='\0';
 }
 
