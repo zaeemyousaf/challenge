@@ -1,0 +1,11 @@
+There are 5 major subjects in second semester
+1): Calculus II
+2): Presentation and communication skills
+3): Digital logic designing
+4): Object oriented Programming
+5): Pakistan Studies
+
+Further there are 3 minor subjects
+6): English Lab
+7): OOP Lab
+8): DLD Lab
