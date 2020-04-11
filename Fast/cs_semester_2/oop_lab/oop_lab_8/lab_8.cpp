@@ -1,4 +1,5 @@
 // comment in binary_class
+// also added by binary branch
 #include <iostream>
 using namespace std;
 
