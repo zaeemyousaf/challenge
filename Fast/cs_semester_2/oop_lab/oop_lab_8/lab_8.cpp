@@ -1,0 +1,199 @@
+
+#include <iostream>
+using namespace std;
+
+class A{
+  int a,b;
+public:
+  A(){a=0;b=0;}
+  A(int x,int y){a=x;b=y;};
+friend A robj(const A &obj){
+    A a1;
+    a1.a=obj.a;
+    a1.b=obj.b;
+    return a1;
+  }
+  friend ostream &operator << (ostream &out,A &obj){
+    out << obj.a << " " << obj.b << endl;
+    return out;
+  }
+  // main
+  /*
+  A a;
+  A b(1,7);
+  cout << a;
+  cout << b;
+  a=robj(b);
+  cout << a;
+  A c;
+  c = robj(a);
+  cout << c;
+  */
+};
+
+class BinaryNum
+{
+private:
+  int* binNum;	//integer array to save binary number
+  int noOfBits;	//total no. of bits
+public:
+  //*modified
+  BinaryNum(){binNum=0; noOfBits=0;}
+  
+  BinaryNum(const char *str){
+    int lenth=0;
+    noOfBits=0;
+    while(*(str+lenth++)) noOfBits++;
+    
+    binNum = new int [noOfBits];
+    //cout << noOfBits << "---------------\n";
+    for(int i=0; i < noOfBits; i++) binNum[i] = str[noOfBits-i-1]-'0';
+  }
+  //------------------- get number of bits
+  int getNumberOfBits() {return noOfBits;}
+  int * getBinaryNo() {return binNum;}
+  
+  BinaryNum operator + (const BinaryNum & obj){
+    BinaryNum *temp = new BinaryNum;
+    //BinaryNum temp = new BinaryNum;
+    temp->binNum= new int [noOfBits+1];
+    //temp.binNum= new int [noOfBits+1];
+   
+  int carry =0;
+  int index =0;
+  int result;
+  while(index < this->noOfBits && index < obj.noOfBits){
+    result = this->binNum[index] + obj.binNum[index]+carry;
+    if(result ==3){
+      carry =1;
+      result =1;
+    }
+    else if (result == 2){carry=1; result = 0;}
+    else{
+      carry=0;
+    }
+    //cout << "*"<< result;
+    temp->binNum[index] = result;
+    index++;
+    //cout << result << "#";
+  }
+  //cout<< index << "*************"; 
+  if(this->noOfBits > obj.noOfBits){
+    for(int i=index; i< this->noOfBits; i++){
+      result = this->binNum[i]+carry;
+      if(result == 3){carry=1; result = 1;}
+      else if(result ==2){carry=1; result=0;}
+      else{carry=0;}
+      temp->binNum[index++] = result;
+      //   cout << "*"<< result; 
+    }
+  }
+  else{
+    //cout << "#############################3";
+    for(int i=index; i< obj.noOfBits; i++){
+      result = obj.binNum[i]+carry;
+      //      cout << result;
+      if(result == 3){carry=1; result = 1;}
+      else if(result ==2){carry=1; result=0;}
+      else{carry=0;}
+      temp->binNum[index++] = result;
+      //cout << result;
+    }
+  }
+{temp->binNum[index]=1;temp->noOfBits=index;}
+//if(carry ==1) {temp->binNum[index]=1;temp->noOfBits=index;}
+  //else{temp->noOfBits=index-1;}
+  //int *inverted = new int [index];
+  //for(int i=0; i < temp->noOfBits; i++) inverted[i]=temp->binNum[temp->noOfBits-i-1];
+  //delete []temp->binNum;
+  //temp->binNum = inverted;
+  //  delete []this->binNum;
+  //cout << "----------" << temp->noOfBits << endl;
+  return *temp;
+}
+  //------------------------------------ = operator
+  BinaryNum &operator =(const BinaryNum &rhs){
+    // check self assignment  
+    if(&rhs != this){
+      if(this->noOfBits !=0){
+      delete []this->binNum;
+      this->noOfBits = rhs.noOfBits;
+      }
+      for(int i=0; i< this->noOfBits; i++) this->binNum[i] = rhs.binNum[i];
+    }
+  
+    return *this;
+  }
+//--------end of modified
+  void Print(){
+	  if(binNum != 0){
+	    for(int i = 0 ; i< noOfBits ; i++)
+	      cout<<binNum[i];
+	  }
+	  //out<<endl;
+	}
+  //--------------- << operator
+   friend ostream & operator << (ostream &out, const BinaryNum & obj){
+     for(int i = 0 ; i< obj.noOfBits; i++){
+      out << obj.binNum[obj.noOfBits-i-1];
+	  }
+	  out << endl;
+    return out;
+}
+  //--------------- >> opeerator
+  // void operator cin>>(BinaryNum obj&){
+  //   noOfBits= obj.getNumberOfBits();
+  //   delete []BinaryNum;
+  //   binNum = new int [noOfBits];
+  //   int *temp = obj.getBinaryNo();
+  //   for(int i=0; i < noOfBits; i++) binNum[i] = temp[i];
+  // }
+  
+  /*
+  ~BinaryNum(){
+    if(noOfBits !=0) delete []binNum;
+    binNum = 0; // or nullptrx
+  }
+  */
+
+};
+
+int main()
+{
+  
+/*
+  BinaryNum b1;			//noOfBits = 0, binNum is NULL
+  BinaryNum b2("1001");	//noOfBits = 3, binNum is {1,0,1}
+  BinaryNum b3("1001");	//noOfBits = 4, binNum is {1,0,0,
+  cout << b3;
+  cout << (b3+b2).getNumberOfBits();
+*/
+  
+//cout << ( b3 +b3);
+  //1001 + 1001 =     10110
+  //cout << b1;
+  //b1 = b1+b3;  
+
+ 
+  //cout << b1;
+ // cout<<"b1 = ";cout<<b1;	//Prints Nothing
+  // cout<<"b2 = ";cout<<b2;	//Prints 101
+  // cout<<"b3 = ";cout<<b3;	//Prints 1001
+  // cout << "b1 = b2 +b3";   
+  // 	b1 = b2+b3;
+ // 	cout<<"b1 = "<<b1;	//Prints 1110
+  // 	cout<<"b1[0] = "<<b1[0]<<endl;	//Prints 1 (0th bit in b1)
+  // 	cout<<"b1[3] = "<<b1[3]<<endl;	//Prints 0 (3rd bit in b1)
+  
+  // 	cout<<b3++;				
+  // bool check = (b3==b2);
+  // cout<<"is equal= "<<check;			//Prints 0
+  // cout<<++b3;							
+  // cin>>b2; 				
+  // cout<<b1-b2; 			
+  //b2.Print();
+  //  cout << b2;
+  //  b1.Print();
+
+  return 0;
+}
