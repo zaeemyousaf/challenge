@@ -1,5 +1,0 @@
-write a funciton that
-Merges two arrays of different lenght into one array
-their sizes are given consecutively
-e.g
-void merge(array1, array2, array3,size1,size2);
