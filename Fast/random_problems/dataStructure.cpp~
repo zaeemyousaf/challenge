@@ -1,0 +1,173 @@
+import java.io.*;
+import java.util.*;
+
+public class DSAGraph implements Serializable
+{
+    private static final long serialVersionUID = 1L;
+    private DSALinkedList vertices = null;
+
+    public DSAGraph(){
+        this.vertices = new DSALinkedList();
+    }
+
+    /* Create vertex with only label */
+    public void addVertex(String label){
+        if(!hasVertex(label,this.vertices)){
+            DSAGraphVertex vertex = new DSAGraphVertex(label);
+            this.vertices.insertLast(vertex);
+        }
+        else{
+            //System.out.println("Sorry, You can't create vertex with this label name because the vertex with same label is already existed");
+        }
+    }
+
+    /* Create vertex with label and value */
+    public void addVertex(String label, Object value){
+        if(!hasVertex(label,this.vertices)){
+            DSAGraphVertex vertex = new DSAGraphVertex(label, value);
+            this.vertices.insertLast(vertex);
+        }
+        else{
+            //System.out.println("Sorry, You can't create vertex with this label name because the vertex with same label is already existed");
+        }
+    }
+
+    /* To add edges */
+    public void addEdge(String label1, String label2){
+        Scanner sc = new Scanner(System.in);
+        if(hasVertex(label1,this.vertices) && hasVertex(label2,this.vertices)){
+            DSAGraphVertex v1 = getVertex(label1);
+            DSAGraphVertex v2 = getVertex(label2);
+            if(!hasVertex(v2.getLabel(), v1.getAdjacent())){
+                v1.addEdge(v2);
+            }
+            else{
+                //System.out.println("You can not create edge "+v1.getLabel()+" with 
+            }
+            if(!hasVertex(v1.getLabel(), v2.getAdjacent())){
+                v2.addEdge(v1);
+            }
+            else{
+                //System.out.println("You can not create edge "+v2.getLabel()+" with "+v1.getLabel()+" because it is already existed");
+            }
+
+        }
+        else{
+            //System.out.println("Edge can not be created because vertex of such label name  "+label1+" or "+label2+" is absent!!!");
+        }
+    }
+
+    /* To determine whether the vertex with such labe name is present or not */
+    public boolean hasVertex(String label, DSALinkedList vertexList){
+        boolean check = false;
+        Iterator iter = vertexList.iterator();
+        DSAGraphVertex iterElement = null;
+        while(iter.hasNext()){
+            iterElement = (DSAGraphVertex)iter.next();
+            if(iterElement.getLabel().equals(label)){
+                check = true;
+            }
+        }
+        return check;
+    }
+
+    /* To get vertex */
+    public DSAGraphVertex getVertex(String label){
+        Iterator iter = this.vertices.iterator();
+        DSAGraphVertex vertexElement = null;
+        DSAGraphVertex expectedVertex = null;
+        while (iter.hasNext()) {
+            vertexElement = (DSAGraphVertex)iter.next();
+            if(vertexElement.getLabel().equals(label)){
+                expectedVertex = vertexElement;
+            }
+        }
+        return expectedVertex;
+    }
+
+    /* Get adjacent list */
+    public DSALinkedList getAdjacent(String label){
+        DSALinkedList vertexList = null;
+        if(hasVertex(label,this.vertices)){
+            vertexList = getVertex(label).getAdjacent();
+        }
+        else{
+            System.out.println("Vertex of such label name is absent!!!");
+        }
+        return vertexList;
+    }
+
+    /* Two vertices are adjacent or not */
+    public boolean isAdjacent(String label1, String label2){
+        boolean check = false;
+        DSAGraphVertex vertexElement = null;
+        if(hasVertex(label1,this.vertices) && hasVertex(label2,this.vertices)){
+            Iterator iter = getAdjacent(label1).iterator();
+            while(iter.hasNext()){
+                vertexElement = (DSAGraphVertex)iter.next();
+                if(vertexElement.getLabel().equals(label2)){
+                    check = true;
+                }
+            }
+        }
+        else{
+            //System.out.println("Edge can not be created because vertex of such label name is absent!!!");
+        }
+        return check;
+    }
+    //--------------------------------
+    public DSALinkedList getVertices(){
+	return vertices;
+    }
+    //--------------------------------
+
+    /* Display graph with label, value and edges*/
+    public void display(){
+        Iterator iterVertex = this.vertices.iterator();
+        DSAGraphVertex vertexElement = null;
+        DSAGraphVertex vertexEdges = null;
+        System.out.println("\nDisplay  normally  with vertex and edges");
+        while(iterVertex.hasNext()){
+            vertexElement = (DSAGraphVertex)iterVertex.next();
+            if(vertexElement.getValue() == null){
+                System.out.print("<< Vertex Label: "+vertexElement.getLabel()+" >> << Vertex edges: ");
+            }
+            else{
+                System.out.print("<< Vertex Label: "+vertexElement.getLabel()+" >> << Vertex value: "+vertexElement.getValue().toString()+" >> << Vertex edges: ");
+            }
+            Iterator iterVertexEdgesList = vertexElement.getAdjacent().iterator();
+            while(iterVertexEdgesList.hasNext()){
+                vertexEdges = (DSAGraphVertex)iterVertexEdgesList.next();
+                System.out.print("("+vertexElement.getLabel()+","+vertexEdges.getLabel()+") ");
+            }
+            System.out.println("");
+        }
+    }
+
+    public void displayAssetSummary(){
+	int totalAssets = 0;
+	
+        Iterator iterVertex = this.vertices.iterator();
+        DSAGraphVertex vertexElement = null;
+        DSAGraphVertex vertexEdges = null;
+        System.out.println("\nDisplay  normally  with vertex and edges");
+        while(iterVertex.hasNext()){
+            vertexElement = (DSAGraphVertex)iterVertex.next();
+	    System.out.print(vertexElement.getLabel() + ": ");
+	    int edgeCounter = 0;
+            Iterator iterVertexEdgesList = vertexElement.getAdjacent().iterator();
+	    totalAssets++;
+            while(iterVertexEdgesList.hasNext()){
+                vertexEdges = (DSAGraphVertex)iterVertexEdgesList.next();
+		edgeCounter++;
+	    }
+	    System.out.println("occurance: "+ edgeCounter);
+        }
+
+	System.out.println("===========================");
+	System.out.println("Total Assets: " + totalAssets);
+	System.out.println("===========================");
+	
+    }
+
+}

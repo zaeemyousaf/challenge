@@ -1,0 +1,57 @@
+import java.util.*;
+import java.io.*;
+public class FileIO
+{
+    public void save(String fileName, DSAGraph graph)
+    {
+	try 
+	    {
+		FileOutputStream fileOutput;
+		ObjectOutputStream objectStr;
+
+		fileOutput = new FileOutputStream(fileName);
+		objectStr = new ObjectOutputStream(fileOutput);
+		objectStr.writeObject(graph);			
+		fileOutput.close();
+			
+	    }
+	catch (Exception e)		
+	    {
+		System.out.println(e);
+			
+	    }
+		
+    }
+	
+    public DSAGraph load(String fileName) throws IllegalArgumentException
+    {
+		
+		DSAGraph newTree = null;
+	try
+	    {
+		FileInputStream fileOutput;
+		ObjectInputStream objectStr;
+
+
+		fileOutput = new FileInputStream(fileName);
+		objectStr = new ObjectInputStream(fileOutput);
+			
+		newTree = (DSAGraph)objectStr.readObject();
+			
+		fileOutput.close();
+		System.out.println("\nimport done\n");
+	    }
+		
+	catch (ClassNotFoundException ex)		
+	    {
+		System.out.println(ex);
+	    }
+		
+	catch (Exception e)
+	    {
+		System.out.println(e);
+	    }
+	return newTree;
+    }
+    
+}
