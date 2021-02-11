@@ -1,0 +1,13 @@
+     1                                  	[org 0x0100]
+     2                                  	;; push all elements of array in stack
+     3                                  	;; then add all elements and store in dx
+     4 00000000 EB04                    	jmp start
+     5                                  decrement:
+     6 00000002 83E901                  	sub cx,1
+     7 00000005 C3                      	ret
+     8                                  start:
+     9 00000006 B90200                  	mov cx,2		; immidiate addressing
+    10 00000009 E8F6FF                  	call decrement
+    11                                  
+    12 0000000C B8004C                  	mov ax, 0x4c00
+    13 0000000F CD21                    	int 0x21
