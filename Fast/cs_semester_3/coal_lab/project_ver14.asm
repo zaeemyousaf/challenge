@@ -1,12 +1,4 @@
-	;; add one line at 303 for status update
-	;; add welcome screen
-	;; detect game end
-	;; random function has been overwritten by timer
-	;; timer interrupt
-	;; bug fix (handle refs: push bp)
-     	;; l19-1196 BCS-3E
-	;; Code of project phase-4
-	;; in future I would use interrupt
+;;; Brick breaking Game in x8086
 	
 [org 0x0100]
 	jmp start
