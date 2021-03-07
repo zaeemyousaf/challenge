@@ -9,7 +9,7 @@ moving_right:	db 'moving right'
 moving_up:	db 'moving upside'
 moving_down:	db 'moving down'
 looping:	db 'it is in loop'
-
+	
 clearScreen:
 	push bp
 	mov bp,sp
@@ -35,19 +35,13 @@ clearScreen:
 
 short_delay:
 	push ax
-	push bx
 	push cx
-	push dx
-	
 	mov ax,0
 small_loop:
 	inc ax
 	cmp ax,0x0FFF
 	jb small_loop
-
-	pop dx
 	pop cx
-	pop bx
 	pop ax
 	ret
 
@@ -74,8 +68,6 @@ random_in_range:		;random_in_range(rnum,min,max)
 	push ax
 	push bx
 	push cx
-	push dx
-	
 while_not_in_range:
 	call short_delay	       ;to update a timer
 	MOV AH, 00h  ; interrupts to get system time        
@@ -92,7 +84,6 @@ while_not_in_range:
 	jb while_not_in_range
 	mov [bp+8],dx		;store the random number
 
-	pop dx
 	pop cx
 	pop bx
 	pop ax
@@ -231,22 +222,15 @@ draw_bounce_board:
 	push ax
 	push bx
 	push cx
-	push dx
-	push es
-	push si
-	
+
 	;; pass argument to draw_rectangle
-	push 20			;lenght of bounce board
+	push 10			;lenght of bounce board
 	push 1			;height
 	push 0x10		;color
 	mov ax,[bp+4]		;x-pos
 	push ax
 	push 25		;y-pos, last row
 	call draw_rectangle
-
-	pop si
-	pop es
-	pop dx
 	pop cx
 	pop bx
 	pop ax
@@ -254,14 +238,12 @@ draw_bounce_board:
 	ret 2
 
 draw_ball:
-	;; [color,x,y,call,bp
 	push bp
 	mov bp,sp
 	push ax
 	push bx
 	push cx
-	push dx
-	
+
 	mov ax,0xb800
 	mov es,ax
 	mov ax,160
@@ -274,21 +256,17 @@ draw_ball:
 	add di,ax		;the actual pos of ball
 
 	mov ah,[bp+8]		; color
-	;; 	mov al,'o'
-	mov al,219
+	mov al,'o'
 
 	mov [es:di],ax
-	add di,2
-	mov [es:di],ax
-
-	pop dx
+	
 	pop cx
 	pop bx
 	pop ax
 	pop bp
 	ret 4
 next_pos:
-	;; [0,ax,cx,dx,call,bp
+	;; [0,0,ax,bx,cx,dx,call,bp
 	push bp
 	mov bp,sp
 	push ax
@@ -296,140 +274,62 @@ next_pos:
 	push cx
 	push dx
 	
-	mov ax,[bp+8]		; ball pos
-	mov bx,ax		; nex-pos
-	mov cx,[bp+6]		; ball speed
-	mov dx,[bp+4]		; ball direction
+	
+	;; mov cx,[bp+6]		; speed.xy
+	;; mov ax,00001111b	; mask to extract speed.y
+	;; and ax,cx
+	;; add ax,bx		;
+	;; mov [bp+12],ax		;final y-pos
+
+	mov dx,[bp+4]		; direction.xy
+	mov cx,[bp+6]		; speed.xy
+
 	cmp dh,0		; is x-dir negative
 	jne x_pos
-	sub bh,ch
-	jmp check_y
+	;; 	sub bh,ch
+	mov ax,[bp+10]		; ball x-pos
+	mov bx,[bp+6]		; speed.xy
+	shr bx,4		; discard speed.y for the time being
+	sub ax,bx		; 
+	mov [bp+14],ax		; final x-pos
+	jmp check_y	
 x_pos:
-	add bh,ch
+	;; 	add bh,ch
+	mov ax,[bp+10]		; ball x-pos
+	mov bx,[bp+6]		; speed.xy
+	shr bx,4		; discard speed.y for the time being
+	add ax,bx		; 
+	mov [bp+14],ax		; final x-pos
 check_y:
 	cmp dl,0
 	jne y_pos
-	sub bl,cl
+
+	mov bx,[bp+6]		; speed.xy
+	mov ax,00001111b	; mask to extract speed.y
+	and ax,bx
+	sub ax,bx		;
+	mov [bp+12],ax		;final y-pos
+
+	;; 	sub bl,cl
 	jmp all_cases_handled
 y_pos:
-	add bl,cl
+	
+	mov bx,[bp+6]		; speed.xy
+	mov ax,00001111b	; mask to extract speed.y
+	and ax,bx
+	add ax,bx		;
+	mov [bp+12],ax		;final y-pos
+	
+	;; add bl,cl
 all_cases_handled:	
-	mov [bp+10],bx		;	
+
 	pop dx
 	pop cx
 	pop bx
 	pop ax
 	pop bp
-	ret 6
+	ret 8
 		
-destroy_brick:
-	;; destroy_brick(x,y)
-	;; [xy,call,bp
-	push bp
-	mov bp,sp
-	push ax
-	push bx
-	push cx
-	push dx
-	push es
-	push si
-
-	mov ax,0xb800
-	mov es,ax
-
-	mov ax,[bp+4]		;xy
-	shl ax,8		; y is in lower byte (discarding higer part)
-	shr ax,8		; higer part discarded
-	mov bh,80
-	mul bh			;80*y
-	mov bx,[bp+4]		;xy
-	shr bx,8			;x is in upper byte
-	add ax,bx		;(80*y)+x
-	shl ax,1			;2(80*y+x) actual position
-
-	mov di,ax
-	mov cx,di		;
-	add cx,2		;this side will be cleared by delete_right
-
-
-delete_left:
-	;; deletes left part of brick
-	mov ax,[es:di]		; pos to be deleted
-	cmp al, ' '		; compare with
-	je delete_right
-	mov ah, 0x00		; black color both foreground and background
-	mov al, ' '		;
-	mov [es:di],ax		;write back 
-	sub di,2
-	jmp delete_left		;
-	
-delete_right:
-	mov di,cx		; cx holds the right part to be deleted
-	;; deletes right part of brick
-delete_further:	
-	mov ax,[es:di]		; pos to be deleted
-	cmp al, ' '		; compare with
-	je eob
-	mov ah, 0x00		; black color both foreground and background
-	mov al, ' '		;
-	mov [es:di],ax		;write back 
-	add di,2
-	jmp delete_further		;
-eob:
-	;; end of brick
-	pop si
-	pop es
-	pop dx
-	pop cx
-	pop bx
-	pop ax
-	pop bp
-	ret 2
-
-brick_test:
-	;; brick_test(bool,xy)
-	;; [0,ax,call,bp
-	push bp
-	mov bp,sp
-	push ax
-	push bx
-	push cx
-	push dx
-	push es
-	push di
-
-	mov ax,0xb800
-	mov es,ax
-	
-	mov ax,[bp+4]		;xy
-	shl ax,8		; y is in lower byte (discarding higer part)
-	shr ax,8		; higer part discarded
-	mov bh,80
-	mul bh			;80*y
-	mov bx,[bp+4]		;xy
-	shr bx,8			;x is in upper byte
-	add ax,bx		;(80*y)+x
-	shl ax,1			;2(80*y+x) actual position
-
-	mov di,ax		;
-	mov ax,[es:di]		; pixel	
-	cmp byte al, ' '		; is color black
-	;; comparison could also be made by space character
-	jne not_brick
-	mov word [bp+6],1
-	jmp end_brick_test
-not_brick:
-	mov word [bp+6],0
-end_brick_test:
-	pop di
-	pop es
-	pop dx
-	pop cx
-	pop bx
-	pop ax
-	pop bp
-	ret 2
-	
 start_game:
 	;; animation part	
 	push bp
@@ -439,18 +339,15 @@ start_game:
 	push cx
 	push dx
 
-	call delay
 	push 0			;
 	push 0			; random direction
 	push 1
 	call random_in_range	; random for x-dir
 	pop ax			;
-
 	;; dx holds direction
-	;; 	mov dh,1
 	mov dh,al		; x-dir
 	mov dl,0		; y-dir is neg initially
-	call delay
+
 	push 0			; random x-velocity
 	push 1
 	push 2
@@ -458,179 +355,193 @@ start_game:
 	pop ax
 	;; cx holds ball speed
 	mov ch,al		; x-speed
-	mov bx,2		;max speed
+	mov bx,3		; max speed
 	sub bx,ax
 	mov cl,bl		; y-speed
 	;; ax hols ball.xy
-	mov ah,40	      ; ball.x
-	mov al,24	      ; ball.y
+	mov ax,40	      ; ball.x
+	mov bx,24	      ; ball.y
 	;; bx holds the ball.next.pos
 	
 while_not_over:	
-	push 0			;next-pos
-	push ax			;current-pos
-	push cx			;speed
-	push dx			;direction
+	push 0			;next-pos x
+	push 0			;next-pos y	
+	push ax			;current-pos.x
+	push bx			;current-pos.y
+	push cx			;speed.xy
+	push dx			;direction.xy
 	call next_pos
-	pop bx
-		
-check_left:	
-	cmp byte dh,0
-	je ball_moving_left
-check_right:	
-	cmp byte dh,1
-	je ball_moving_right
-check_up:	
+	pop si
+
 	cmp byte dl,0
 	je ball_moving_up
-check_down:	
 	cmp byte dl,1
 	je ball_moving_down
+
+	cmp byte dh,0
+	je ball_moving_left
+	cmp byte dh,1
+	je ball_moving_right
 	jmp keep_moving
 
 ball_moving_left:
 	;; check left boundary
-	cmp byte bh,80		; if it becomes negative, very large number
-	;; 	jb check_right
-	jb is_brick_on_left
+	cmp byte ax,80		; if it becomes negative, very large number
+	jb keep_moving
 	;; otherwise perform reflection
 	mov dh,1		;reflect x-axis only
-	mov ah,0
-	mov bh,0
-	jmp keep_moving		; reflection has been handled
+	;; ------------------
+	;; push ax
+	;; push bx
+	;; push cx
+	;; push dx
+	;; push cs
+	;; push es
 	
-is_brick_on_left:
-	push si			;save state
-	push 0			;
-	push ax
-	call brick_test
-	pop si
-	cmp si,1		; 1:true
-	pop si			; restore state
-	jne check_right
-	;; collision with brick has occured
-	;; check whether 'top' or 'left' collision occured
-	sub al,1		; ball.y - 1
-	
-	push si			;save state
-	push 0			;
-	push ax
-	call brick_test
-	pop si
-	cmp si,1		; 1:true
-	pop si			; restore state
-	jne brick_on_top
-	;; brick is on left
-	;; reflect right by switching x-component only
-	mov dh,1
-	mov bx,ax		;next pos has been updated
-brick_on_top:
-	add al,1		; correct previos pos
-	mov dl,1		; flip y-dir only
-	mov bx,ax		; update brick next pos
-	jmp keep_moving		; all cases handled
-		
+	;; mov ah,0x13
+	;; mov al,1
+	;; mov bh,0
+	;; mov bl,7
+	;; mov dx,0x0A03
+	;; mov cx, 11
+	;; push cs
+	;; pop es
+	;; mov bp, moving_left
+	;; int 0x10
+
+	;; pop es
+	;; pop cs
+	;; pop dx
+	;; pop cx
+	;; pop bx
+	;; pop ax
+	;; ------------------
+	jmp keep_moving
+
 ball_moving_right:
 	;; check right boundary
-	cmp byte bh,79		; if it cross right boundary
-	jb is_brick_on_right
+	cmp byte bh,80		; if it cross right boundary
+	jb keep_moving
 	;; otherwise perform reflection
 	mov dh,0		;reflect x-axis only
-	mov ah,79
-	mov bh,79
-	jmp check_up
+	;; -------------------
+	;; push ax
+	;; push bx
+	;; push cx
+	;; push dx
+	;; push cs
+	;; push es
 	
-is_brick_on_right:
-	push si			;save state
-	push 0			;
-	push ax
-	call brick_test
-	pop si
-	cmp si,1		; 1:true
-	pop si			; restore state
-	jne check_up
-	
-	mov dh,0		;reflect x-axis only
-	mov ah,79
-	mov bh,79
+	;; mov ah,0x13
+	;; mov al,1
+	;; mov bh,0
+	;; mov bl,7
+	;; mov dx,0x0A03
+	;; mov cx, 11
+	;; push cs
+	;; pop es
+	;; mov bp, moving_right
+	;; int 0x10
+
+	;; pop es
+	;; pop cs
+	;; pop dx
+	;; pop cx
+	;; pop bx
+	;; pop ax
+	;; -------------------
 	jmp keep_moving
-	;; jmp check_up
 
 ball_moving_up:
 	;; check upper boundary
 	cmp byte bl,25		; if it becomes negative, very large number	
-	jb is_brick_on_top
+	jb keep_moving
 	;; otherwise perform reflection
 	mov dl,1		;reflect x-axis only
-	mov al,0
-	mov bl,0
-	jmp check_down
-is_brick_on_top:
-	push si			;save state
-	push 0			;
-	push ax
-	call brick_test
-	pop si
-	cmp si,1		; 1:true
-	pop si			; restore si
-	jne check_down
-	mov dl,1		;reflect x-axis only
-	mov al,0
-	mov bl,0
-	;; 	jmp check_down
+	;; -------------------
+	;; push ax
+	;; push bx
+	;; push cx
+	;; push dx
+	;; push cs
+	;; push es
+	
+	;; mov ah,0x13
+	;; mov al,1
+	;; mov bh,0
+	;; mov bl,7
+	;; mov dx,0x0A03
+	;; mov cx, 11
+	;; push cs
+	;; pop es
+	;; mov bp, moving_up
+	;; int 0x10
+
+	;; pop es
+	;; pop cs
+	;; pop dx
+	;; pop cx
+	;; pop bx
+	;; pop ax
+	;; -------------------
 	jmp keep_moving
 
 ball_moving_down:
 	;; check lower boundary
 	cmp byte bl,25		; if it becomes negative, very large number
-	;; jb keep_moving
-	jb is_brick_on_bottom
+	jb keep_moving
 	;; otherwise perform reflection
 	mov dl,0		;reflect x-axis only
-	mov al,24
-	jmp keep_moving
+	;; -------------------
+	;; push ax
+	;; push bx
+	;; push cx
+	;; push dx
+	;; push cs
+	;; push es
 	
-is_brick_on_bottom:
-	push si			;save state
-	push 0			;
-	push ax
-	call brick_test
-	pop si
-	cmp ax,1		; 1:true
-	pop si			; restore si
-	jne keep_moving
-	mov dl,0		;reflect x-axis only
-	mov al,24
+	;; mov ah,0x13
+	;; mov al,1
+	;; mov bh,0
+	;; mov bl,7
+	;; mov dx,0x0A03
+	;; mov cx, 11
+	;; push cs
+	;; pop es
+	;; mov bp, moving_down
+	;; int 0x10
+
+	;; pop es
+	;; pop cs
+	;; pop dx
+	;; pop cx
+	;; pop bx
+	;; pop ax
+	;; -------------------
 	jmp keep_moving
 
 keep_moving:	
 	push 0x07		;white color
-	mov bh,00000000b			;
+	mov bh,0000b			;
 	mov bl,ah			;
 	push bx			;x-pos of ball
-	mov bh,00000000b			;	
+	mov bh,0000b			;	
 	mov bl,al		;y-pos of ball
 	push bx
 	call draw_ball
 
-	;; 	call delay
+	call delay
 	call delay
 
 	;; delete ball after delay
 	push 0x00		;		black color same as screen background
-	mov bh,00000000b			
+	mov bh,0000b			
 	mov bl,ah			
 	push bx			;			x-pos of ball
-	mov bh,00000000b				
+	mov bh,0000b				
 	mov bl,al		;		y-pos of ball
 	push bx
 	call draw_ball
-
-	push ax
-	call destroy_brick
-	
-	push 40			;x-pos of board, y=25
-	call draw_bounce_board
 
 	;; continue game
 	push 0			;next-pos
@@ -642,9 +553,32 @@ keep_moving:
 	mov ax,bx		; pass next pos to ax
 	;; bh = ah +/- ch
 	;; bl = al +/- cl
-
+	
+	;;
 	;; push ax
-	;; call destroy_brick	
+	;; push bx
+	;; push cx
+	;; push dx
+	;; push cs
+	;; push es
+	
+	;; mov ah,0x13
+	;; mov al,1
+	;; mov bh,0
+	;; mov bl,7
+	;; mov dx,0x0B11
+	;; mov cx, 11
+	;; push cs
+	;; pop es
+	;; mov bp, looping
+	;; int 0x10
+
+	;; pop es
+	;; pop cs
+	;; pop dx
+	;; pop cx
+	;; pop bx
+	;; pop ax
 
 	jmp while_not_over
 	
@@ -654,42 +588,16 @@ keep_moving:
 	pop ax
 	pop bp
 	ret
+	;; =============================== main	
 
-
-	;; =============================== main		
 start:
 	;; stack[length,height,fill_col,pos_x,pos_y
 	call clearScreen
 	call reset_game
-
-	;; push si			;store state
-	;; push 0			;result
-	;; mov si,0x0100
-	;; push si
-	;; call brick_test
-	;; pop si
-	;; cmp si,1
-	;; pop si
-	;; jne end
-
-	call start_game		;
-;; stop:
-;; 	call delay
-;; 	jmp stop
-	;; mov ax,0x07 
-	;; push ax
-	;; mov ax,1
-	;; push ax
-	;; push 79
-	;; push ax
-	;; call draw_ball
-
-	;; push 0
-	;; push 0x2800
-	;; push 0x0203
-	;; push 0x0001
-	;; call next_pos
-	;; pop ax
-end:	
+	
+	push 40			;x-pos of board, y=25
+	call draw_bounce_board
+	call start_game
+	
 	mov ax, 0x4c00
 	int 0x21
