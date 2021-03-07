@@ -1,3 +1,4 @@
+	;; bug fix (handle refs: push bp)
      	;; l19-1196 BCS-3E
 	;; Code of project phase-4
 	;; in future I would use interrupt
@@ -7,48 +8,24 @@
 
 oldisr:	dd 0
 	
-ball_x:	db 70			; init x pos of ball
-ball_y:	db 24			; just above the bounce board
-board_x:	db 0		; in mid of screen; y is fixed
+ball_x:	db 45			; init x pos of ball
+ball_y:	db 23			; just above the bounce board
+board_x:	db 40		; in mid of screen; y is fixed
 ball_x_dir:	db 1			; 0: left; 1:right
 ball_y_dir:	db 0			; 0: up; 1:down
 life:	db 3				; initial 3 life
 ball_size:	db 1			; 2 char long
 game_out_flag:	db 0			; out when 1
-board_length:	db 80
+board_length:	db 20
+score:	db 0
+game_status:	db 0		; initially not running
+	;; pressing enter key, switches it on
+;;; -----------notifications
+out_msg:	db 'OUT',0
+play_again_msg:	db 'press space bar to play again',0
+instruction1:	db ' ',0
+life_msg:	db 'Life: ',0
 
-
-kbisr:
-	pusha
-	mov ax, 0xb800
-	mov es,ax
-	in al, 0x60
-	cmp al, 0x36
-	jne right_shift
-	
-	xor cx,cx
-	mov ch,[board_x]
-	inc cx
-	mov [board_x],cx
-	
-right_shift:
-	;; mov byte [es:0], 'L'
-	cmp al,0x2a
-	jne no_match_key
-
-	xor cx,cx
-	mov ch,[board_x]
-	dec cx
-	mov [board_x],cx
-	
-no_match_key:	
-	;; mov byte [es:0], 'R'
-	mov al,0x20
-	out 0x20,al
-	popa
-
-	jmp far [cs:oldisr]
-	;; 	iret			;
 
 ref_x_brick:
 
@@ -59,8 +36,8 @@ ref_x_brick:
 	push ax
 	push bx	
 
-	push 6
-	call printnum
+	;; push 6
+	;; call printnum
 	
 	mov ah,0x1		; mask
 	mov bh,[ball_x_dir]
@@ -79,8 +56,8 @@ ref_y_brick:
 	push ax
 	push bx	
 
-	push 5
-	call printnum
+	;; push 5
+	;; call printnum
 	
 	mov ah,0x1		; mask
 	mov bh,[ball_y_dir]
@@ -107,15 +84,15 @@ ref_x_wall:
 	cmp ah,0		; is ball moving left
 	jne right_wall
 
-	push 1
-	call printnum
+	;; push 1
+	;; call printnum
 
 	mov byte [ball_x_dir],1	;flip
 	mov byte [ball_x], 0		; place ball on left wall
 	jmp end_ref_x_wall
 right_wall:	
-	push 2
-	call printnum
+	;; push 2
+	;; call printnum
 
 	mov byte [ball_x_dir],0	;flip
 	;; compute the size of ball
@@ -128,8 +105,8 @@ right_wall:
 
 	xor ax,ax
 	mov al,[ball_x]
-	push ax
-	call printnum
+	;; push ax
+	;; call printnum
 	
 	jmp end_ref_x_wall
 end_ref_x_wall:
@@ -154,16 +131,16 @@ ref_y_wall:
 	cmp ah,0		; is ball moving up
 	jne red_zone		; ball is on last line
 
-	push 3
-	call printnum
+	;; push 3
+	;; call printnum
 	
 	mov byte [ball_y_dir],1	; set ball dir downward
 	mov byte [ball_y], 0		; place ball on top wall
 	jmp end_ref_y_wall
 red_zone:
 	;; if ball is on the board
-	push 4
-	call printnum
+	;; push 4
+	;; call printnum
 	
 	xor ax,ax
 	mov al,[board_x]	; ax holds left loc of board
@@ -186,20 +163,21 @@ game_out:
 	xor ax,ax
 	mov al,[life]		; load lives
 	dec ax
-	mov [life],ax		; update life
+	mov byte [life],al		; update life
 	cmp ax,0
 	jne play_again
-	call end_of_game
+	;; call end_of_game
+	mov byte [game_out_flag], 1
 	jmp end_ref_y_wall
 play_again:
 	;; call clearScreen
 	;; call reset_game
-	;; call start_game
+	;; call play_game_time_int
 	;; jmp end_of_game
 	mov byte [ball_x],40	; reset ball pos
 	mov byte [ball_y],24
 	
-	mov byte [game_out_flag], 1
+	mov byte [game_out_flag], 0
 end_ref_y_wall:	
 	pop dx
 	pop bx
@@ -421,7 +399,7 @@ draw_rectangle:
 
 	mov di,[bp+6]		;column
 	;; 	sub di,1		; because real is zero based 
-	shl di,1		;word-size
+	sal di,1		;word-size
 	add di,ax		; actual initial position of rectangle
 	mov ah,[bp+8]		; fill color
 	mov al,223		;block is made up of blocks with color 		background
@@ -435,7 +413,7 @@ height:
 	push dx
 	mov dx,80
 	sub dx,[bp+12]
-	shl dx,1	
+	sal dx,1	
 	add di,dx
 	pop dx
 	add bx,1
@@ -530,6 +508,9 @@ reset_game:
 	mov bp,sp
 	push ax
 	push cx
+
+	call clearScreen
+	
 	mov cx,0		; bricks starts from 
 while:	
 	mov ax,cx
@@ -537,7 +518,7 @@ while:
 	push ax		;first line number 1 not zero
 
 	sub ax,4	;top space color correction
-	shl ax,4	;make new color (works upto
+	sal ax,4	;make new color (works upto
 	push ax
 	add ax,4	;
 
@@ -545,6 +526,18 @@ while:
 	inc cx
 	cmp cx,4		; has 4 lines been printed
 	jb while
+
+	;; draw ball over the board
+	push 0x07		;white color same as screen background
+	mov bh,0x00
+	mov byte bl,[ball_x]			
+	push bx			;-pos of ball
+	mov bh,0x00				
+	mov byte bl,[ball_y]		;y-pos of ball
+	push bx
+	call draw_ball
+	;; show life, score and timer
+	;; call display_life
 	
 	pop cx
 	pop ax
@@ -597,7 +590,7 @@ draw_ball:
 	mov bx,[bp+4]		;y-pos
 	mul bx			;160*y
 	mov bx,[bp+6]		;x-pos
-	shl bx,1
+	sal bx,1
 	add ax,bx		;160*y+x
 	mov di,0		;points to left-top
 	add di,ax		;the actual pos of ball
@@ -615,7 +608,7 @@ draw_ball:
 	pop bx
 	pop ax
 	pop bp
-	ret 4
+	ret 6
 
 next_pos:
 	;; [0,ax,cx,dx,call,bp
@@ -668,14 +661,14 @@ destroy_brick:
 	mov es,ax
 
 	mov ax,[bp+4]		;xy
-	shl ax,8		; y is in lower byte (discarding higer part)
-	shr ax,8		; higer part discarded
+	sal ax,8		; y is in lower byte (discarding higer part)
+	sar ax,8		; higer part discarded
 	mov bh,80
 	mul bh			;80*y
 	mov bx,[bp+4]		;xy
-	shr bx,8			;x is in upper byte
+	sar bx,8			;x is in upper byte
 	add ax,bx		;(80*y)+x
-	shl ax,1			;2(80*y+x) actual position
+	sal ax,1			;2(80*y+x) actual position
 
 	mov di,ax
 	mov cx,di		;
@@ -733,14 +726,14 @@ brick_test:
 	mov es,ax
 	
 	mov ax,[bp+4]		;xy
-	shl ax,8		; y is in lower byte (discarding higer part)
-	shr ax,8		; higer part discarded
+	sal ax,8		; y is in lower byte (discarding higer part)
+	sar ax,8		; higer part discarded
 	mov bh,80
 	mul bh			;80*y
 	mov bx,[bp+4]		;xy
-	shr bx,8			;x is in upper byte
+	sar bx,8			;x is in upper byte
 	add ax,bx		;(80*y)+x
-	shl ax,1			;2(80*y+x) actual position
+	sal ax,1			;2(80*y+x) actual position
 
 	mov di,ax		;
 	mov ax,[es:di]		; pixel	
@@ -775,6 +768,8 @@ handle_refs:
 	;; ball's next position is analysed
 	;; and decided whether it collided
 	;; with any boundary or not
+	push bp
+	mov bp,sp
 	push ax
 	push bx
 	push cx
@@ -782,9 +777,9 @@ handle_refs:
 	
 	mov ax,[bp+4]		; ball's next pos
 	;; x pos in higher byte
-	cmp ah,79		; is ball in screen
+	cmp byte ah,79		; is ball in screen
 	jae apply_x_ref
-	cmp al,25
+	cmp byte al,24
 	jae apply_y_ref
 
 	xor ax,ax
@@ -827,38 +822,21 @@ end_boundray_ref:
 	pop cx
 	pop bx
 	pop ax
+	pop bp
 	ret 2	
 
-start_game:
-	
-	;; animation part	
-	push bp
-	mov bp,sp
+play_game_time_int:	
+	;; animation par
 	push ax
 	push bx
 	push cx
 	push dx
 	
-;; 	call delay
-;; 	call delay
-;; 	push 0			;
-;; 	push 0			; random direction
-;; 	push 30			; generate random between 0 and 20
-;; 	call random_in_range	; random for x-dir
-;; 	pop ax
-;; 	cmp ax, 10
-;; 	ja rand_dir_neg
-;; 	mov byte [ball_x_dir], 1
-;; rand_dir_neg:
-;; 	;; random direction is negative
-;; 	mov byte [ball_x_dir], 0
-	
-while_not_over:
-	xor ax,ax
-	xor bx,bx
-	xor cx,cx
-	xor dx,dx
-	
+	;; check game status
+	mov byte al,[game_status]
+	cmp al,0
+	je game_not_started
+	;; while_not_over
 	mov ah,[ball_x]	; load x pos
 	mov al,[ball_y]	; load y pos
 	mov ch,1	; speed of ball in x-dir
@@ -884,7 +862,6 @@ while_not_over:
 	je it_is_brick
 	;; perform boundry test
 
-	
 	mov ah,[ball_x]		; refresh ax
 	mov al,[ball_y]
 
@@ -892,7 +869,6 @@ while_not_over:
 	call handle_refs	;handle reflections
 
 	;; or brick, hence move forward
-	
 	jmp all_cases_handled
 
 it_is_brick:
@@ -902,19 +878,11 @@ it_is_brick:
 	call bounce_on_brick
 	
 all_cases_handled:
-	;; push ax			;pos of ball
-	;; push 40			;pos of board
-	;; ;; call printnum
-	;; call draw_ball_board
 
-	push ax
-	in al,0x60
-	pop ax
-
+	;; avoid destroying slider
+	;; clear ball previously drawn
 	push bx
-	call destroy_brick
-
-	push 0x07		;white color
+	push 0x00		; black color
 	mov bh,0x00			;
 	mov bl,ah			;
 	push bx			;x-pos of ball
@@ -922,96 +890,279 @@ all_cases_handled:
 	mov bl,al		;y-pos of ball
 	push bx
 	call draw_ball
+	pop bx
+	;; 	draw at new location
+	cmp byte bl,20
+	ja it_is_slider
+	push bx
+	call destroy_brick
+	
+it_is_slider:	
 
-	push ax
-	xor ax,ax
-	mov al,0x01
-	push ax
-	mov al,[board_x]
-	push ax
-	call draw_bounce_board
-	xor ax,ax
-	pop ax
-	call delay
 
-	;; push ax
-	;; mov ah, 0
- 	;; int 0x16
-	;; pop ax
-
-	;; 	delete ball after delay
-	push 0x00		;		black color same as screen background
+	push 0x07		;white color same as screen background
 	mov bh,0x00
-	mov bl,ah			
-	push bx			;			x-pos of ball
+	mov byte bl,[ball_x]			
+	push bx			;-pos of ball
 	mov bh,0x00				
-	mov bl,al		;		y-pos of ball
+	mov byte bl,[ball_y]		;y-pos of ball
 	push bx
 	call draw_ball
+game_not_started:	
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
 
+move_slider_kbint:
+	;; move slider key board interrupt
+	push ax
+	push bx
+	push cx
+	push dx
+
+	;; push 0
+	;; call printnum
+	
+	xor bx,bx
+	mov bl,[board_x]	; store old loc of slider
+	;; clear old drawn slider	
+
+
+	in al, 0x60
+	cmp al, 33
+	je right_shift
+	;; left shift was pressed
+	cmp al,30
+	je left_shift
+	cmp al,27
+	;; set game_out flag
+	push ax			;store state
+	xor ax,ax
+	mov al,1
+	mov byte [game_out_flag],al
+	pop ax
+
+	cmp al,28		;is Enter key pressed
+	je init_game
+	jmp end_kb_isr
+
+init_game:
+	mov byte [game_status],1
+left_shift:
+	;; push 1
+	;; call printnum
+
+	xor ax,ax
+	mov al,bl
+	sub ax,2
+	mov byte [board_x],al
+	jmp no_match_key
+right_shift:
+	xor ax,ax
+	mov al,[board_x]
+	add ax,2
+	mov [board_x],al
+	jmp no_match_key
+
+no_match_key:	
+	cmp byte bl,80		;has slider become negative
+	ja place_on_left
+	xor ax,ax
+	mov ax,80
+	sub al,[board_length]
+	cmp bl,al		;
+	ja place_on_right	;
+	;; else movement is valid
+	jmp end_kb_isr
+	
+place_on_left:
+	mov byte [board_x],0
+	jmp end_kb_isr
+place_on_right:
+	xor ax,ax
+	mov al,80
+	sub al,[board_length]
+	mov byte[board_x],al
+	;; push ax
+	;; call printnum
+	jmp end_kb_isr
+	
+end_kb_isr:
+	;; clear old pos
 	xor ax,ax
 	mov al,0x00
 	push ax
-	mov al,[board_x]
+	xor ax,ax
+	mov al,bl	; bx holds old pos of slider
+	push ax			;old value
+	call draw_bounce_board
+	xor ax,ax
+	;; draw new pos
+	xor bx,bx
+	mov bl,[board_x]
+	
+	xor ax,ax
+	mov al,0x07
 	push ax
+	xor ax,ax
+	mov al,bl	; bx holds old pos of slider
+	push ax			;old value
 	call draw_bounce_board
 	xor ax,ax
 	
-	mov ah,[life]
-	cmp byte ah,0
-	je exit_game
-	jmp while_not_over
+	mov al,0x20
+	out 0x20,al
+
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	;; jmp far [cs:oldisr]
+	iret			;
+	;; 	ret
+
+
+hook_kbisr:
+	;; it hooks kbd int service routine
+	push ax
+	push bx
+	push cx
+	push dx
+	push es
 	
-exit_game:
+	xor ax, ax
+	mov es, ax ; point es to IVT base
+
+	mov ax,[es:9*4]
+	mov [oldisr],ax
+	mov ax,[es:9*4+2]
+	mov [oldisr+2],ax
+	
+	cli ; disable interrupts
+	mov word [es:9*4], move_slider_kbint; store offset at n*4
+	mov [es:9*4+2], cs ; store segment at n*4+2
+	sti ; enable interrupts
+
+	pop es
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+unhook_kbisr:
+	;; it unhooks kbd int service routine
+	push ax
+	push bx
+	push cx
+	push dx
+	push es
+	
+	xor ax,ax
+	mov es,ax
+	
+	mov ax,[oldisr]	
+	mov bx,[oldisr+2]
+
+	mov [es:9*4],ax
+	mov [es:9*4+2],bx
+
+	pop es
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+	
+display_life:
+	;; it reads life from global variable
+	;; display label first
+	push ax
+	push bx
+	push cx
+	push dx
+
+	mov ax,1		; x pos left most top
+	push ax
+	mov ax,1
+	push ax			; left corner
+
+	mov ax,2
+	push ax
+	mov ax, life_msg
+	push ax
+	call printstr
 	
 	pop dx
 	pop cx
 	pop bx
 	pop ax
-	pop bp
 	ret
+	
+printstr:
+	;; this code taken from book is not commented pg. 113
+	push bp
+	mov bp,sp
+	push es
+	push ax
+	push cx
+	push si
+	push di
 
+	push ds
+	pop es
+	mov di, [bp+4]
+	mov cx,0xffff
+	xor al,al
+	repsne scasb
+	mov ax, 0xffff
+	sub ax,cx
+	dec ax
+	jz exit
 
+	mov cx,ax
+	mov ax,0xb800
+	mov es,ax
+	mov al,80
+	mul byte [bp+8]
+	add ax,[bp+10]
+	shl ax,1
+	mov di,ax
+	mov si,[bp+4]
+	mov ah,[bp+6]
 
-	;; =============================== main		
+	cld
+nextchar:
+	lodsb
+	stosw
+	loop nextchar
+exit:
+	pop di
+	pop si
+	pop cx
+	pop ax
+	pop es
+	pop bp
+	ret 8
+
+;;; =============================== main		
 start:
-	;; stack[length,height,fill_col,pos_x,pos_y
 
-	call clearScreen
+	call hook_kbisr
+
 	call reset_game
-	call start_game
+my_loop:
+	call delay
+	;; 	call delay
+	call play_game_time_int
+	mov al,[game_out_flag]
+	cmp al,0
+	jne my_loop
 
-	
-	;; xor bx,bx
-	;; ;; call ref_x_wall
-	;; mov bx,[ball_y]
-	;; push bx
-	;; call printnum
-	
-	;; xor ax, ax
-	;; mov es, ax ; point es to IVT base
-
-	;; mov ax,[es:9*4]
-	;; mov [oldisr],ax
-	;; mov ax,[es:9*4+2]
-	;; mov [oldisr+2],ax
-	
-	;; cli ; disable interrupts
-	;; mov word [es:9*4], kbisr; store offset at n*4
-	;; mov [es:9*4+2], cs ; store segment at n*4+2
-	;; sti ; enable interrupts
-
-
-
-
-end_of_game:
-	
-	;; mov ax,[oldisr]
-	;; mov bx,[oldisr+2]
-	;; cli
-	;; mov [es:9*4],ax
-	;; mov [es:9*4+2],bx
-	;; sti
-
+	call unhook_kbisr
+	;; unhook kbd interrupt
+	;; terminate with residing here
 	mov ax, 0x4c00
 	int 0x21
