@@ -9,7 +9,7 @@ moving_right:	db 'moving right'
 moving_up:	db 'moving upside'
 moving_down:	db 'moving down'
 looping:	db 'it is in loop'
-	
+
 clearScreen:
 	push bp
 	mov bp,sp
@@ -35,13 +35,19 @@ clearScreen:
 
 short_delay:
 	push ax
+	push bx
 	push cx
+	push dx
+	
 	mov ax,0
 small_loop:
 	inc ax
 	cmp ax,0x0FFF
 	jb small_loop
+
+	pop dx
 	pop cx
+	pop bx
 	pop ax
 	ret
 
@@ -68,6 +74,8 @@ random_in_range:		;random_in_range(rnum,min,max)
 	push ax
 	push bx
 	push cx
+	push dx
+	
 while_not_in_range:
 	call short_delay	       ;to update a timer
 	MOV AH, 00h  ; interrupts to get system time        
@@ -84,6 +92,7 @@ while_not_in_range:
 	jb while_not_in_range
 	mov [bp+8],dx		;store the random number
 
+	pop dx
 	pop cx
 	pop bx
 	pop ax
@@ -222,15 +231,22 @@ draw_bounce_board:
 	push ax
 	push bx
 	push cx
-
+	push dx
+	push es
+	push si
+	
 	;; pass argument to draw_rectangle
-	push 10			;lenght of bounce board
+	push 20			;lenght of bounce board
 	push 1			;height
 	push 0x10		;color
 	mov ax,[bp+4]		;x-pos
 	push ax
 	push 25		;y-pos, last row
 	call draw_rectangle
+
+	pop si
+	pop es
+	pop dx
 	pop cx
 	pop bx
 	pop ax
@@ -238,12 +254,14 @@ draw_bounce_board:
 	ret 2
 
 draw_ball:
+	;; [color,x,y,call,bp
 	push bp
 	mov bp,sp
 	push ax
 	push bx
 	push cx
-
+	push dx
+	
 	mov ax,0xb800
 	mov es,ax
 	mov ax,160
@@ -256,17 +274,21 @@ draw_ball:
 	add di,ax		;the actual pos of ball
 
 	mov ah,[bp+8]		; color
-	mov al,'o'
+	;; 	mov al,'o'
+	mov al,219
 
 	mov [es:di],ax
-	
+	add di,2
+	mov [es:di],ax
+
+	pop dx
 	pop cx
 	pop bx
 	pop ax
 	pop bp
 	ret 4
 next_pos:
-	;; [0,0,ax,bx,cx,dx,call,bp
+	;; [0,ax,cx,dx,call,bp
 	push bp
 	mov bp,sp
 	push ax
@@ -274,61 +296,31 @@ next_pos:
 	push cx
 	push dx
 	
-	
-	;; mov cx,[bp+6]		; speed.xy
-	;; mov ax,00001111b	; mask to extract speed.y
-	;; and ax,cx
-	;; add ax,bx		;
-	;; mov [bp+12],ax		;final y-pos
-
-	mov dx,[bp+4]		; direction.xy
-	mov cx,[bp+6]		; speed.xy
-
+	mov ax,[bp+8]		; ball pos
+	mov bx,ax		; nex-pos
+	mov cx,[bp+6]		; ball speed
+	mov dx,[bp+4]		; ball direction
 	cmp dh,0		; is x-dir negative
 	jne x_pos
-	;; 	sub bh,ch
-	mov ax,[bp+10]		; ball x-pos
-	mov bx,[bp+6]		; speed.xy
-	shr bx,4		; discard speed.y for the time being
-	sub ax,bx		; 
-	mov [bp+14],ax		; final x-pos
-	jmp check_y	
+	sub bh,ch
+	jmp check_y
 x_pos:
-	;; 	add bh,ch
-	mov ax,[bp+10]		; ball x-pos
-	mov bx,[bp+6]		; speed.xy
-	shr bx,4		; discard speed.y for the time being
-	add ax,bx		; 
-	mov [bp+14],ax		; final x-pos
+	add bh,ch
 check_y:
 	cmp dl,0
 	jne y_pos
-
-	mov bx,[bp+6]		; speed.xy
-	mov ax,00001111b	; mask to extract speed.y
-	and ax,bx
-	sub ax,bx		;
-	mov [bp+12],ax		;final y-pos
-
-	;; 	sub bl,cl
+	sub bl,cl
 	jmp all_cases_handled
 y_pos:
-	
-	mov bx,[bp+6]		; speed.xy
-	mov ax,00001111b	; mask to extract speed.y
-	and ax,bx
-	add ax,bx		;
-	mov [bp+12],ax		;final y-pos
-	
-	;; add bl,cl
+	add bl,cl
 all_cases_handled:	
-
+	mov [bp+10],bx		;	
 	pop dx
 	pop cx
 	pop bx
 	pop ax
 	pop bp
-	ret 8
+	ret 6
 		
 start_game:
 	;; animation part	
@@ -339,15 +331,18 @@ start_game:
 	push cx
 	push dx
 
+	call delay
 	push 0			;
 	push 0			; random direction
 	push 1
 	call random_in_range	; random for x-dir
 	pop ax			;
+
 	;; dx holds direction
+	;; 	mov dh,1
 	mov dh,al		; x-dir
 	mov dl,0		; y-dir is neg initially
-
+	call delay
 	push 0			; random x-velocity
 	push 1
 	push 2
@@ -355,136 +350,65 @@ start_game:
 	pop ax
 	;; cx holds ball speed
 	mov ch,al		; x-speed
-	mov bx,3		; max speed
+	mov bx,2		;max speed
 	sub bx,ax
 	mov cl,bl		; y-speed
 	;; ax hols ball.xy
-	mov ax,40	      ; ball.x
-	mov bx,24	      ; ball.y
+	mov ah,40	      ; ball.x
+	mov al,10	      ; ball.y
 	;; bx holds the ball.next.pos
 	
 while_not_over:	
-	push 0			;next-pos x
-	push 0			;next-pos y	
-	push ax			;current-pos.x
-	push bx			;current-pos.y
-	push cx			;speed.xy
-	push dx			;direction.xy
+	push 0			;next-pos
+	push ax			;current-pos
+	push cx			;speed
+	push dx			;direction
 	call next_pos
-	pop si
-
-	cmp byte dl,0
-	je ball_moving_up
-	cmp byte dl,1
-	je ball_moving_down
-
+	pop bx
+		
+check_left:	
 	cmp byte dh,0
 	je ball_moving_left
+check_right:	
 	cmp byte dh,1
 	je ball_moving_right
+check_up:	
+	cmp byte dl,0
+	je ball_moving_up
+check_down:	
+	cmp byte dl,1
+	je ball_moving_down
 	jmp keep_moving
 
 ball_moving_left:
 	;; check left boundary
-	cmp byte ax,80		; if it becomes negative, very large number
-	jb keep_moving
+	cmp byte bh,80		; if it becomes negative, very large number
+	jb check_right
 	;; otherwise perform reflection
 	mov dh,1		;reflect x-axis only
-	;; ------------------
-	;; push ax
-	;; push bx
-	;; push cx
-	;; push dx
-	;; push cs
-	;; push es
-	
-	;; mov ah,0x13
-	;; mov al,1
-	;; mov bh,0
-	;; mov bl,7
-	;; mov dx,0x0A03
-	;; mov cx, 11
-	;; push cs
-	;; pop es
-	;; mov bp, moving_left
-	;; int 0x10
-
-	;; pop es
-	;; pop cs
-	;; pop dx
-	;; pop cx
-	;; pop bx
-	;; pop ax
-	;; ------------------
-	jmp keep_moving
+	mov ah,0
+	mov bh,0
+	jmp check_right
 
 ball_moving_right:
 	;; check right boundary
-	cmp byte bh,80		; if it cross right boundary
-	jb keep_moving
+	cmp byte bh,79		; if it cross right boundary
+	jb check_up
 	;; otherwise perform reflection
 	mov dh,0		;reflect x-axis only
-	;; -------------------
-	;; push ax
-	;; push bx
-	;; push cx
-	;; push dx
-	;; push cs
-	;; push es
-	
-	;; mov ah,0x13
-	;; mov al,1
-	;; mov bh,0
-	;; mov bl,7
-	;; mov dx,0x0A03
-	;; mov cx, 11
-	;; push cs
-	;; pop es
-	;; mov bp, moving_right
-	;; int 0x10
-
-	;; pop es
-	;; pop cs
-	;; pop dx
-	;; pop cx
-	;; pop bx
-	;; pop ax
-	;; -------------------
-	jmp keep_moving
+	mov ah,79
+	mov bh,79
+	jmp check_up
 
 ball_moving_up:
 	;; check upper boundary
 	cmp byte bl,25		; if it becomes negative, very large number	
-	jb keep_moving
+	jb check_down
 	;; otherwise perform reflection
 	mov dl,1		;reflect x-axis only
-	;; -------------------
-	;; push ax
-	;; push bx
-	;; push cx
-	;; push dx
-	;; push cs
-	;; push es
-	
-	;; mov ah,0x13
-	;; mov al,1
-	;; mov bh,0
-	;; mov bl,7
-	;; mov dx,0x0A03
-	;; mov cx, 11
-	;; push cs
-	;; pop es
-	;; mov bp, moving_up
-	;; int 0x10
-
-	;; pop es
-	;; pop cs
-	;; pop dx
-	;; pop cx
-	;; pop bx
-	;; pop ax
-	;; -------------------
-	jmp keep_moving
+	mov al,0
+	mov bl,0
+	jmp check_down
 
 ball_moving_down:
 	;; check lower boundary
@@ -492,34 +416,10 @@ ball_moving_down:
 	jb keep_moving
 	;; otherwise perform reflection
 	mov dl,0		;reflect x-axis only
-	;; -------------------
-	;; push ax
-	;; push bx
-	;; push cx
-	;; push dx
-	;; push cs
-	;; push es
-	
-	;; mov ah,0x13
-	;; mov al,1
-	;; mov bh,0
-	;; mov bl,7
-	;; mov dx,0x0A03
-	;; mov cx, 11
-	;; push cs
-	;; pop es
-	;; mov bp, moving_down
-	;; int 0x10
-
-	;; pop es
-	;; pop cs
-	;; pop dx
-	;; pop cx
-	;; pop bx
-	;; pop ax
-	;; -------------------
+	mov al,24
+	mov al,24
 	jmp keep_moving
-
+ 
 keep_moving:	
 	push 0x07		;white color
 	mov bh,0000b			;
@@ -529,8 +429,8 @@ keep_moving:
 	mov bl,al		;y-pos of ball
 	push bx
 	call draw_ball
-
-	call delay
+	
+	;; 	call delay
 	call delay
 
 	;; delete ball after delay
@@ -542,6 +442,9 @@ keep_moving:
 	mov bl,al		;		y-pos of ball
 	push bx
 	call draw_ball
+	
+	push 40			;x-pos of board, y=25
+	call draw_bounce_board
 
 	;; continue game
 	push 0			;next-pos
@@ -554,31 +457,6 @@ keep_moving:
 	;; bh = ah +/- ch
 	;; bl = al +/- cl
 	
-	;;
-	;; push ax
-	;; push bx
-	;; push cx
-	;; push dx
-	;; push cs
-	;; push es
-	
-	;; mov ah,0x13
-	;; mov al,1
-	;; mov bh,0
-	;; mov bl,7
-	;; mov dx,0x0B11
-	;; mov cx, 11
-	;; push cs
-	;; pop es
-	;; mov bp, looping
-	;; int 0x10
-
-	;; pop es
-	;; pop cs
-	;; pop dx
-	;; pop cx
-	;; pop bx
-	;; pop ax
 
 	jmp while_not_over
 	
@@ -590,14 +468,91 @@ keep_moving:
 	ret
 	;; =============================== main	
 
+destroy_brick:
+	;; destroy_brick(x,y)
+	;; [x,y,call,bp
+	push bp
+	mov bp,sp
+	push ax
+	push bx
+	push cx
+	push dx
+	push es
+	push si
+
+	mov ax,0xb800
+	mov es,ax
+
+	mov ah,[bp+4]		;y
+	mov bh,80
+	mul bh			;80*y
+	mov bx,[bp+6]		;x
+	add ax,bx		;(80*y)+x
+	shl ax,1			;2(80*y+x) actual position
+
+	mov di,ax	
+	
+delete_left:
+	;; deletes left part of brick
+	mov ax,[es:di]		; pos to be deleted
+	cmp al, ' '		; compare with
+	je delete_right
+	mov ah, 0x0000		; black color both foreground and background
+	mov al, ' '		;
+	sub di,2
+	jmp delete_left		;
+	
+delete_right:
+	;; deletes right part of brick
+	mov ax,[es:di]		; pos to be deleted
+	cmp al, ' '		; compare with
+	je eob
+	mov ah, 0x0000		; black color both foreground and background
+	mov al, ' '		;
+	add di,2
+	jmp delete_left		;
+eob:
+	;; end of brick
+	push bp
+	mov bp,sp
+	push ax
+	push bx
+	push cx
+	push dx
+	push es
+	push si
+
+	pop si
+	pop es
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	pop bp
+	ret 4
+	
+	
 start:
 	;; stack[length,height,fill_col,pos_x,pos_y
 	call clearScreen
 	call reset_game
-	
-	push 40			;x-pos of board, y=25
-	call draw_bounce_board
+
 	call start_game
+
+	;; mov ax,0x07 
+	;; push ax
+	;; mov ax,1
+	;; push ax
+	;; push 79
+	;; push ax
+	;; call draw_ball
+
+	;; push 0
+	;; push 0x2800
+	;; push 0x0203
+	;; push 0x0001
+	;; call next_pos
+	;; pop ax
 	
 	mov ax, 0x4c00
 	int 0x21
