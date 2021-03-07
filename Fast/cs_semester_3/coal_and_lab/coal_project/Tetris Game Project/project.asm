@@ -1,10 +1,4 @@
-	;; detect game end
-	;; random function has been overwritten by timer
-	;; timer interrupt
-	;; bug fix (handle refs: push bp)
-     	;; l19-1196 BCS-3E
-	;; Code of project phase-4
-	;; in future I would use interrupt
+;;; Brick breaking Game in x8086
 	
 [org 0x0100]
 	jmp start
@@ -13,8 +7,8 @@ old_kbisr:	dd 0
 old_tmisr:	dd 0
 	
 ball_x:	db 40			; init x pos of ball
-ball_y:	db 23			; just above the bounce board
-board_x:	db 40		; in mid of screen; y is fixed
+ball_y:	db 22			; just above the bounce board
+board_x:	db 1		; in mid of screen; y is fixed
 ball_x_dir:	db 1			; 0: left; 1:right
 ball_y_dir:	db 0			; 0: up; 1:down
 life:	db 3				; initial 3 life
@@ -27,14 +21,13 @@ game_status:	db 0		; initially not running
 	;; game_status:2 means that game is over
 ;;; -----------notifications
 out_msg:	db 'L O S T',0
-you_won:	db 'H U R R A H! Y O U W O N',0
-play_again_msg:	db 'press space bar to play again',0
-instruction1:	db ' ',0
+you_won:	db 'H U R R A H!  Y O U  W O N',0
 life_msg:	db 'Life: ',0
 score_msg:	db 'Score: ',0
 time_msg:	db 'Elapsed time: ',0
 milliseconds:	dw 0
 seconds:	db 0		; time elapsed is in seconds
+instructions:	db '<Enter key Start> <A: Left> <F: right>',0
 
 any_brick_left:
 	;; this functions chechs everytime
@@ -53,7 +46,6 @@ any_brick_left:
 	mov ax,0xb800
 	mov es,ax
 	xor di,di
-	;; 	mov di,480		;2(3*80)
 	mov di,480		;2(3*80)
 	xor bx,bx		; game is over
 check_every_pixel:
@@ -253,9 +245,7 @@ ref_y_wall:
 	mov byte [ball_y], 0		; place ball on top wall
 	jmp end_ref_y_wall
 red_zone:
-	;; if ball is on the board
-	;; push 4
-	;; call printnum
+	;; if ball is on board
 	
 	xor ax,ax
 	mov al,[board_x]	; ax holds left loc of board
@@ -271,30 +261,39 @@ red_zone:
 	ja game_out		;
 	
 	mov byte [ball_y_dir],0	; change y-dir up
-	mov byte [ball_y], 24	; place ball just above the board
+	mov byte [ball_y], 23	; place ball just above the board
 	jmp end_ref_y_wall
 	
 game_out:
 	xor ax,ax
 	mov al,[life]		; load lives
 	dec ax
-	mov byte [life],al		; update life
-	cmp byte al,0
+	cmp al,0
 	jne play_again
-	;; call end_of_game
-	cmp al,3
-	jb play_again
-	mov byte [game_out_flag], 1
-	jmp end_ref_y_wall
+	;; 	ja end_ref_y_wall
+	jmp exit_game
 play_again:	
 	;; call clearScreen
 	;; call reset_game
 	;; call playisr
 	;; jmp end_of_game
-	mov byte [ball_x],40	; reset ball pos
-	mov byte [ball_y],24
+	cmp al,3
+	ja exit_game
+	mov byte [life],al
 	mov byte [game_out_flag], 0
-end_ref_y_wall:	
+	;; correct direction
+	mov byte [ball_y_dir],0
+	;; reset game status
+	mov byte [game_status],0 ; halt and wait for Enter key
+	;; reset ball over the slider
+	mov byte [ball_y],23
+	mov byte [ball_x],45
+	jmp end_ref_y_wall
+exit_game:
+	mov byte [life],0
+	mov byte [game_out_flag], 1
+	mov byte [game_status],2
+end_ref_y_wall:
 	pop dx
 	pop cx
 	pop bx
@@ -435,7 +434,7 @@ while_not_in_range:
 	INT 1AH	     ;cx:dx hold now time
 	mov ax,dx
 	xor dx,dx
-	mov cx,10
+	mov cx,20
 	div cx
 	mov ax,[bp+4]		;high range
 	cmp dx,ax
@@ -534,15 +533,15 @@ draw_bricks_layer:		;e.g function(layer1,color)
 	mov cx,2
 while_incomplete:
 	mov ax,cx
-	add ax,10		; 10 is max size of a brick
+	add ax,19		; 10 is max size of a brick
 	cmp ax,80
 	ja last_brick_remaining
 	;; get random length on interval [5,10]
 	call short_delay	; to bring randomness
 	
 	push 0			; random is stored her
-	push 4
-	push 6			;it is max size of bricks
+	push 6
+	push 10			;it is max size of bricks
 	call random_in_range
 	pop ax			;length comes here
 	mov bx,ax		;store ax
@@ -614,7 +613,7 @@ while:
 
 	call draw_bricks_layer
 	inc cx
-	cmp cx,4		; has 4 lines been printed
+	cmp cx,6		; has 4 lines been printed
 	jb while
 
 	;; draw ball over the board
@@ -962,13 +961,12 @@ playisr:
 	push bx
 	push cx
 	push dx
-	push es
-	push di
 
 	xor ax,ax
 	mov al,[seconds]
 	inc ax
 	mov byte [seconds],al
+
 	
 	;; check game status
 	mov byte al,[game_status]
@@ -1058,13 +1056,20 @@ it_is_slider:
 	mov byte bl,[ball_y]		;y-pos of ball
 	push bx
 	call draw_ball
-game_not_started:	
+game_not_started:
+	;; game may or may not have started here
+	xor ax,ax
+	mov al,[game_status]
+	cmp al,1		;not started
+	je has_started
+	call display_welcome
+	jmp not_started
+has_started:
+	call clear_welcome
+not_started:	
 	mov al,0x20
 	out 0x20,al
 
-
-	pop di
-	pop es
 	pop dx
 	pop cx
 	pop bx
@@ -1082,9 +1087,6 @@ move_slider_isr:
 	push bx
 	push cx
 	push dx
-
-	;; push 0
-	;; call printnum
 	
 	xor bx,bx
 	mov bl,[board_x]	; store old loc of slider
@@ -1097,6 +1099,13 @@ move_slider_isr:
 	cmp al,30
 	je left_shift
 	cmp al,27
+	je quit_game
+	jmp no_quit
+quit_game:
+	mov byte[game_out_flag],1
+	mov byte[game_status],2
+	;; mov byte[life],0
+no_quit:	
 	;; set game_out flag
 	push ax			;store state
 	xor ax,ax
@@ -1123,13 +1132,13 @@ right_shift:
 	sub al,[board_length]
 	push bx			; store
 	mov bl,[board_x]
-	add bl,2
+	add bl,4
 	cmp bl,al
 	pop bx			;restore
 	ja no_match_key
 	xor ax,ax
 	mov al,[board_x]
-	add ax,2
+	add ax,4
 	mov byte [board_x],al
 
 no_match_key:
@@ -1163,19 +1172,9 @@ end_kb_isr:
 	mov al,24
 	cmp bl,80
 	ja no_clear		; do not clear slider when on left most
-
-	;; push bx
-	;; call printnum
+	
 	push ax
 	call destroy_brick
-
-	;; push ax
-	;; xor ax,ax
-	;; mov ax,[score]
-	;; push ax
-	;; call printnum
-	;; pop ax
-
 no_clear:
 	
 	xor ax,ax
@@ -1198,62 +1197,108 @@ no_clear:
 	iret			;
 
 
-;; hook_kbisr:
-;; 	;; it hooks kbd int service routine
-;; 	push ax
-;; 	push bx
-;; 	push cx
-;; 	push dx
-;; 	push es
-;; 	push cs
-	
-;; 	xor ax, ax
-;; 	mov es, ax ; point es to IVT base
+hook_kbisr:
+	;; it hooks kbd int service routine
+	push ax
+	push bx
+	push cx
+	push dx
 
-;; 	mov ax,[es:9*4]
-;; 	mov [old_kbisr],ax
-;; 	mov ax,[es:9*4+2]
-;; 	mov [old_kbisr+2],ax
 	
-;; 	cli ; disable interrupts
-;; 	mov word [es:9*4], move_slider_isr; store offset at n*4
-;; 	mov [es:9*4+2], cs ; store segment at n*4+2
-;; 	sti ; enable interrupts
+	xor ax, ax
+	mov es, ax ; point es to IVT base
 
-;; 	pop cs
-;; 	pop es
-;; 	pop dx
-;; 	pop cx
-;; 	pop bx
-;; 	pop ax
-;; 	ret
-
-;; unhook_kbisr:
-;; 	;; it unhooks kbd int service routine
-;; 	push ax
-;; 	push bx
-;; 	push cx
-;; 	push dx
-;; 	push es
-;; 	push cs
+	mov ax,[es:9*4]
+	mov [old_kbisr],ax
+	mov ax,[es:9*4+2]
+	mov [old_kbisr+2],ax
 	
-;; 	xor ax,ax
-;; 	mov es,ax
-	
-;; 	mov ax,[old_kbisr]	
-;; 	mov bx,[old_kbisr+2]
+	cli ; disable interrupts
+	mov word [es:9*4], move_slider_isr; store offset at n*4
+	mov [es:9*4+2], cs ; store segment at n*4+2
+	sti ; enable interrupts
 
-;; 	mov [es:9*4],ax
-;; 	mov [es:9*4+2],bx
 
-;; 	pop cs
-;; 	pop es
-;; 	pop dx
-;; 	pop cx
-;; 	pop bx
-;; 	pop ax
-;; 	ret
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+hook_tmisr:
+	;; it hooks kbd int service routine
+	push ax
+	push bx
+	push cx
+	push dx
 	
+	;; timer interrupt
+	xor ax, ax
+	mov es, ax ; point es to IVT base
+
+	mov ax,[es:8*4]
+	mov [old_tmisr],ax
+	mov ax,[es:8*4+2]
+	mov [old_tmisr+2],ax
+	
+	cli ; disable interrupts
+	mov word [es:8*4], playisr; store offset at n*4
+	mov [es:8*4+2], cs ; store segment at n*4+2
+	sti ; enable interrupts
+
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+unhook_kbisr:
+	;; it unhooks kbd int service routine
+	push ax
+	push bx
+	push cx
+	push dx
+
+	
+	xor ax,ax
+	mov es,ax
+	
+	mov ax,[old_kbisr]	
+	mov bx,[old_kbisr+2]
+
+	mov [es:9*4],ax
+	mov [es:9*4+2],bx
+
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+unhook_tmisr:
+	;; it unhooks kbd int service routine
+	push ax
+	push bx
+	push cx
+	push dx
+
+	;; ;; unhooking timer interrupt
+	xor ax, ax
+	xor bx,bx
+	mov es, ax ; point es to IVT base
+
+	mov ax,[old_tmisr]	
+	mov bx,[old_tmisr+2]
+
+	mov [es:8*4],ax
+	mov [es:8*4+2],bx
+
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
 display_life:
 	;; it reads life from global variable
 	;; display label first
@@ -1297,7 +1342,45 @@ display_welcome:
 	push es
 	push di
 	
-	call clearScreen
+	mov ax,20		; x pos left most top
+	push ax
+	mov ax,16
+	push ax			; left corner
+
+	mov ax,6
+	push ax
+	mov ax, instructions	;
+	push ax
+	call printstr
+	
+
+	pop di
+	pop es
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+clear_welcome:
+	;; it reads life from global variable
+	;; display label first
+	push ax
+	push bx
+	push cx
+	push dx
+	push es
+	push di
+	
+	mov ax,20		; x pos left most top
+	push ax
+	mov ax,16
+	push ax			; left corner
+
+	mov ax,0x00
+	push ax
+	mov ax, instructions	;
+	push ax
+	call printstr
 	
 
 	pop di
@@ -1370,7 +1453,7 @@ display_time:
 	mov [milliseconds],ax
 
 	sub ax,1
-	mov bl,25		;18.18...
+	mov bl,18		;18.18...
 	xor dx,dx
 	div bl
 	mov byte [seconds],al	;store the quetient
@@ -1392,6 +1475,7 @@ display_out:
 	push cx
 	push dx
 
+	call clearScreen
 	mov ax,40		; x pos center
 	push ax
 	mov ax,12
@@ -1482,49 +1566,38 @@ exit:
 
 ;;; =============================== main		
 start:
-	call reset_game	
-	;; 	call hook_kbisr
-	xor ax, ax
-	mov es, ax ; point es to IVT base
+	call reset_game
+	call display_welcome
 
-	mov ax,[es:9*4]
-	mov [old_kbisr],ax
-	mov ax,[es:9*4+2]
-	mov [old_kbisr+2],ax
 	
-	cli ; disable interrupts
-	mov word [es:9*4], move_slider_isr; store offset at n*4
-	mov [es:9*4+2], cs ; store segment at n*4+2
-	sti ; enable interrupts
-
-	;; timer interrupt
-	xor ax, ax
-	mov es, ax ; point es to IVT base
-
-	mov ax,[es:8*4]
-	mov [old_tmisr],ax
-	mov ax,[es:9*4+2]
-	mov [old_tmisr+2],ax
-	
-	cli ; disable interrupts
-	mov word [es:8*4], playisr; store offset at n*4
-	mov [es:8*4+2], cs ; store segment at n*4+2
-	sti ; enable interrupts
+	call hook_kbisr		; hook kbd int service rountine
+	call hook_tmisr		;hook timer int service routine
 
 
 my_loop:
 	call display_life	
 	call display_score	;
 	call display_time
-	call delay		;
-	call delay		;
-	
+
+	call delay
+
 	call any_brick_left
 	
 	xor ax,ax
-	mov byte al,[life]
-	cmp al,0
-	jne my_loop
+	mov byte al,[game_status]
+	cmp al,2
+	je unhook_and_exit
+	jmp my_loop
+	
+
+unhook_and_exit:	
+	;; --------------------
+	;; unhook kbd interrupt
+	;; terminate with residing here
+	call unhook_kbisr
+	call unhook_tmisr
+
+	;; --------------------
 	;; game is over now
 	call display_life	
 	call display_score	;
@@ -1539,25 +1612,6 @@ my_loop:
 display_out_msg:
 	call display_out
 bye:	
-	;; unhook kbd interrupt
-	;; terminate with residing here
-	xor ax,ax
-	mov es,ax
-	
-	mov ax,[old_kbisr]	
-	mov bx,[old_kbisr+2]
-
-	mov [es:9*4],ax
-	mov [es:9*4+2],bx
-	;; ;; unhooking timer interrupt
-	xor ax, ax
-	mov es, ax ; point es to IVT base
-
-	mov ax,[old_tmisr]	
-	mov bx,[old_tmisr+2]
-
-	mov [es:8*4],ax
-	mov [es:8*4+2],bx
 
 	mov ax, 0x4c00
 	int 0x21
