@@ -1,15 +1,299 @@
       	;; l19-1196 BCS-3E
-	;; Code of project phase-1
+	;; Code of project phase-4
 	;; in future I would use interrupt
 	
 [org 0x0100]
 	jmp start
-moving_left:	db 'moving left'
-moving_right:	db 'moving right'
-moving_up:	db 'moving upside'
-moving_down:	db 'moving down'
-looping:	db 'it is in loop'
 
+oldisr:	dd 0
+	
+ball_x:	db 70			; init x pos of ball
+ball_y:	db 24			; just above the bounce board
+board_x:	db 0		; in mid of screen; y is fixed
+ball_x_dir:	db 1			; 0: left; 1:right
+ball_y_dir:	db 0			; 0: up; 1:down
+life:	db 3				; initial 3 life
+ball_size:	db 1			; 2 char long
+game_out_flag:	db 0			; out when 1
+board_length:	db 80
+
+	
+
+
+kbisr:
+	pusha
+	mov ax, 0xb800
+	mov es,ax
+	in al, 0x60
+	cmp al, 0x36
+	jne right_shift
+	
+	xor cx,cx
+	mov ch,[board_x]
+	inc cx
+	mov [board_x],cx
+	
+right_shift:
+	;; mov byte [es:0], 'L'
+	cmp al,0x2a
+	jne no_match_key
+
+	xor cx,cx
+	mov ch,[board_x]
+	dec cx
+	mov [board_x],cx
+	
+no_match_key:	
+	;; mov byte [es:0], 'R'
+	mov al,0x20
+	out 0x20,al
+	popa
+
+	jmp far [cs:oldisr]
+	;; 	iret			;
+
+ref_x_brick:
+
+	;; get reflection in x-axis of brick	
+	;; just flips ball_x_dir
+	;; no parameters given. it access global vars
+	;; store states
+	push ax
+	push bx	
+
+	push 6
+	call printnum
+	
+	mov ah,0x1		; mask
+	mov bh,[ball_x_dir]
+	xor ah,bh		; inversion by complement
+	mov [ball_x_dir], ah	; put back
+	;; restore previous states
+	pop bx
+	pop ax
+	ret
+
+ref_y_brick:
+	;; get reflection in y-axis of brick
+	;; just flips ball_y_dir
+	;; no parameters given. it access global vars
+	;; store states
+	push ax
+	push bx	
+
+	push 5
+	call printnum
+	
+	mov ah,0x1		; mask
+	mov bh,[ball_y_dir]
+	xor ah,bh		; inversion by complement
+	mov [ball_y_dir], ah	; put back
+	;; restore previous states
+	pop bx
+	pop ax
+	ret
+
+ref_x_wall:
+
+	;; get reflection in x-axis of wall
+	;; just flips ball_x_dir
+	;; no parameters given. it access global vars
+	;; store states
+	push ax			;store state
+	push bx
+
+	xor ax,ax
+	mov ah,[ball_x_dir]
+	;; if ball is moving left
+	;; chage dir and set the ball on left wall
+	cmp ah,0		; is ball moving left
+	jne right_wall
+
+	push 1
+	call printnum
+
+	mov byte [ball_x_dir],1	;flip
+	mov byte [ball_x], 0		; place ball on left wall
+	jmp end_ref_x_wall
+right_wall:	
+	push 2
+	call printnum
+
+	mov byte [ball_x_dir],0	;flip
+	;; compute the size of ball
+	xor ax,ax
+	mov al,80		; right boundary
+	xor bx,bx		; higher byte may contain garbage	
+	mov bl,[ball_size]
+	sub al,bl		
+	mov byte [ball_x], al	; place ball on right wall
+
+	xor ax,ax
+	mov al,[ball_x]
+	push ax
+	call printnum
+	
+	jmp end_ref_x_wall
+end_ref_x_wall:
+	
+	pop bx
+	pop ax
+	ret
+
+ref_y_wall:
+	;; get reflection in y-axis of wall
+	;; just flips ball_x_dir
+	;; no parameters given. it access global vars
+	;; store states
+	push ax			;store state
+	push bx
+	push dx
+	
+	mov ah,[ball_y_dir]
+	;; if ball is moving up
+	;; chage dir and set the ball on top wall
+	;; cmp ah,0		; is ball moving up
+	cmp ah,0		; is ball moving up
+	jne red_zone		; ball is on last line
+
+	push 3
+	call printnum
+	
+	mov byte [ball_y_dir],1	; set ball dir downward
+	mov byte [ball_y], 0		; place ball on top wall
+	jmp end_ref_y_wall
+red_zone:
+	;; if ball is on the board
+	push 4
+	call printnum
+	
+	xor ax,ax
+	mov al,[board_x]	; ax holds left loc of board
+	xor bx,bx
+	mov bl,[board_length]		; length of board
+	add bx, ax		; right loc of board
+
+	xor dx,dx
+	mov dl,[ball_x]		; ball_x pos
+	cmp dx,ax		; ball.x < board_left_corner ?
+	jb game_out		;
+	cmp dx,bx		; ball.x > board_right_corner ?
+	ja game_out		;
+	
+	mov byte [ball_y_dir],0	; change y-dir up
+	mov byte [ball_y], 24	; place ball just above the board
+	jmp end_ref_y_wall
+	
+game_out:
+	xor ax,ax
+	mov al,[life]		; load lives
+	dec ax
+	mov [life],ax		; update life
+	cmp ax,0
+	jne play_again
+	call end_of_game
+	jmp end_ref_y_wall
+play_again:
+	;; call clearScreen
+	;; call reset_game
+	;; call start_game
+	;; jmp end_of_game
+	mov byte [ball_x],40	; reset ball pos
+	mov byte [ball_y],24
+	
+	mov byte [game_out_flag], 1
+end_ref_y_wall:	
+	pop dx
+	pop bx
+	pop ax
+	ret
+
+bounce_on_brick:
+	;; once brick is detected
+	;; it determines direction of ball
+	;; no parameter passed. it temperes global vars
+	;; which at a time required by others subroutines
+	;; it does not check whether given coordinate
+	;; is a brick, it is callers responsibility
+	push ax
+	push bx
+	push cx
+	push dx
+
+	xor ax,ax
+	xor bx,bx
+	xor cx,cx	
+	xor dx,dx
+		
+	mov dh, [ball_x_dir]
+	mov dl, [ball_y_dir]
+
+	mov ah, [ball_x]
+	mov al, [ball_y]
+	
+	cmp byte dl,0			; if ball moving up
+	jne brick_is_below
+
+	;; push ax			;store state
+	sub al,1		; pos of ball vertically above
+	push 0			; pass by ref
+	push ax
+	add al,1
+	call brick_test
+	pop ax
+	cmp ax,0		;test vertically up space empty
+	;; pop ax			;restore the state of ax
+	je ref_x_axis
+	jmp ref_y_axis
+ref_x_axis:
+	call ref_x_brick
+	jmp end_bounce
+ref_y_axis:
+	call ref_y_brick
+	jmp end_bounce
+	
+brick_is_below:
+	
+	add al,1
+	push 0
+	push ax
+	sub al,1
+	call brick_test
+	pop ax
+	cmp ax,0
+	je ref_x_axis
+	jmp ref_y_axis
+end_bounce:
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+	
+clearScreen:
+	push bp
+	mov bp,sp
+	push ax
+	push es
+	push di
+	push cx
+
+	mov ax, 0xb800
+	mov es,ax
+	mov di,0
+	mov ah,0x00
+	mov al,0x20
+	mov cx,2000
+	rep stosw
+	;; screen has been cleared
+	pop cx
+	pop di
+	pop es
+	pop ax
+	pop bp
+	ret
+
+	
 printnum:
 	push bp
 	mov bp,sp
@@ -51,42 +335,6 @@ nextpos:
 	pop bp
 	ret 2	
 
-;; kbisr:
-;; 	pusha
-;; 	mov ax, 0xb800
-;; 	mov es,ax
-;; 	in al, 0x60
-;; 	cmp al, 0x2a
-;; 	mov byte [es:0], 'L'
-;; 	cmp al,0x36
-;; 	mov byte [es:0], 'R'
-;; 	mov al,0x20
-;; 	out 0x20,al
-;; 	popa
-;; 	iret
-	
-clearScreen:
-	push bp
-	mov bp,sp
-	push ax
-	push es
-	push di
-	push cx
-
-	mov ax, 0xb800
-	mov es,ax
-	mov di,0
-	mov ah,0x00
-	mov al,0x20
-	mov cx,2000
-	rep stosw
-	;; screen has been cleared
-	pop cx
-	pop di
-	pop es
-	pop ax
-	pop bp
-	ret
 
 short_delay:
 	push ax
@@ -164,6 +412,7 @@ draw_rectangle:
 	push di
 	push cx
 	push bx
+	push dx
 	
 	mov ax,0xb800
 	mov es,ax
@@ -194,7 +443,8 @@ height:
 	add bx,1
 	cmp bx,[bp+10]
 	jb height
-	
+
+	pop dx
 	pop bx
 	pop cx
 	pop di
@@ -206,10 +456,23 @@ draw_bricks_layer:		;e.g function(layer1,color)
 	push bp
 	mov bp,sp
 	push ax
-	push cx
 	push bx
-
+	push cx
+	push dx
+	
+	;; on even line leave space on left
+	xor ax,ax
+	mov ax,[bp+6]		;
+	mov bh,2
+	div bh
+	cmp ah,0
+	je even_line
+	mov cx,1		;left most col
+	mov dx,1		; dx 1: even odd line
+	jmp while_incomplete
+even_line:
 	mov cx,0		;left most col
+	mov dx,0		; dx 0 means even line
 while_incomplete:
 	mov ax,cx
 	add ax,10		; 10 is max size of a brick
@@ -240,8 +503,13 @@ while_incomplete:
 	;; restoring the registers
 	jmp while_incomplete
 last_brick_remaining:
+
 	mov ax,80
 	sub ax,cx
+	
+	xor dx,0x1
+	sub ax,dx
+	
 	push ax			;length
 	mov ax,1
 	push ax			;height of rectangle
@@ -251,9 +519,10 @@ last_brick_remaining:
 	mov ax,[bp+6]		;line number as y pos
 	push ax
 	call draw_rectangle
-		
-	pop bx
+
+	pop dx
 	pop cx
+	pop bx
 	pop ax
 	pop bp
 	ret 4
@@ -291,7 +560,9 @@ draw_bounce_board:
 	push si
 	
 	;; pass argument to draw_rectangle
-	push 20			;lenght of bounce board
+	xor ax,ax
+	mov al,[board_length]
+	push ax			;lenght of bounce board
 	push 1			;height
 	push 0x10		;color
 	mov ax,[bp+4]		;x-pos
@@ -329,12 +600,12 @@ draw_ball:
 	add di,ax		;the actual pos of ball
 
 	mov ah,[bp+8]		; color
-	;; 	mov al,'o'
-	mov al,219
+	mov al,'o'
+	;; 
 
 	mov [es:di],ax
-	add di,2
-	mov [es:di],ax
+	;; add di,2
+	;; mov [es:di],ax
 
 	pop dx
 	pop cx
@@ -342,6 +613,7 @@ draw_ball:
 	pop ax
 	pop bp
 	ret 4
+
 next_pos:
 	;; [0,ax,cx,dx,call,bp
 	push bp
@@ -365,10 +637,10 @@ check_y:
 	cmp dl,0
 	jne y_pos
 	sub bl,cl
-	jmp all_cases_handled
+	jmp cases_handled
 y_pos:
 	add bl,cl
-all_cases_handled:	
+cases_handled:	
 	mov [bp+10],bx		;	
 	pop dx
 	pop cx
@@ -442,6 +714,7 @@ eob:
 	ret 2
 
 brick_test:
+	;; return 1 if brick found
 	;; brick_test(bool,xy)
 	;; [0,ax,call,bp
 	push bp
@@ -468,9 +741,17 @@ brick_test:
 
 	mov di,ax		;
 	mov ax,[es:di]		; pixel	
-	cmp byte al, ' '		; is color black
+	cmp byte al, 223		; is color black
 	;; comparison could also be made by space character
+	;; 	jne not_brick
+	je brick_found
+	add di,2
+	mov ax,[es:di]
+	cmp al, 223
 	jne not_brick
+	;; cmp byte ah, 0x00
+	;; jne not_brick
+brick_found:	
 	mov word [bp+6],1
 	jmp end_brick_test
 not_brick:
@@ -485,7 +766,68 @@ end_brick_test:
 	pop bp
 	ret 2
 
+	
+handle_refs:
+	;; handle_refs(pos.xy)
+	;; ball's next position is analysed
+	;; and decided whether it collided
+	;; with any boundary or not
+	push ax
+	push bx
+	push cx
+	push dx
+	
+	mov ax,[bp+4]		; ball's next pos
+	;; x pos in higher byte
+	cmp ah,79		; is ball in screen
+	jae apply_x_ref
+	cmp al,25
+	jae apply_y_ref
+
+	xor ax,ax
+	xor bx,bx
+	xor cx,cx
+	xor dx,dx
+	
+	mov ah,[ball_x]	; load x pos
+	mov al,[ball_y]	; load y pos
+	mov ch,1	; speed of ball in x-dir
+	mov cl,1	; speed of ball in y-dir
+	mov dh,[ball_x_dir]	; positive or negative
+	mov dl,[ball_y_dir]	; positive or negative
+	
+	;; compute next pos of ball
+	push 0			;next-pos
+	push ax			;current-pos
+	push cx			;speed
+	push dx			;direction
+	call next_pos
+	pop bx
+
+	cmp bh,79
+	jae apply_x_ref
+	cmp bl,25
+	jae apply_y_ref
+	
+	mov byte [ball_x], bh
+	mov byte [ball_y], bl
+	jmp end_boundray_ref
+apply_x_ref:	
+	;; push 101
+	;; call printnum
+	call ref_x_wall
+	jmp end_boundray_ref
+apply_y_ref:
+	call ref_y_wall
+end_boundray_ref:
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret 2	
+
 start_game:
+	
 	;; animation part	
 	push bp
 	mov bp,sp
@@ -494,36 +836,40 @@ start_game:
 	push cx
 	push dx
 
+	;; 	call delay
+;; 	call delay
+;; 	push 0			;
+;; 	push 0			; random direction
+;; 	push 30			; generate random between 0 and 20
+;; 	call random_in_range	; random for x-dir
+;; 	pop ax
+;; 	cmp ax, 10
+;; 	ja rand_dir_neg
+;; 	mov byte [ball_x_dir], 1
+;; rand_dir_neg:
+;; 	;; random direction is negative
+;; 	mov byte [ball_x_dir], 0
 	
-	call delay
-	push 0			;
-	push 0			; random direction
-	push 1
-	call random_in_range	; random for x-dir
-	pop ax			;
+while_not_over:
+	xor ax,ax
+	xor bx,bx
+	xor cx,cx
+	xor dx,dx
 
-	;; dx holds direction
-	;; 	mov dh,1
-	mov dh,al		; x-dir
-	mov dl,0		; y-dir is neg initially
-	call delay
-	;; push 0			; random x-velocity
-	;; push 1
-	;; push 2
-	;; call random_in_range
-	;; pop ax
-	mov ax,1
-	;; cx holds ball speed
-	mov ch,al		; x-speed
-	mov bx,2		;max speed
-	sub bx,ax
-	mov cl,bl		; y-speed
-	;; ax hols ball.xy
-	mov ah,40	      ; ball.x
-	mov al,7	      ; ball.y
-	;; bx holds the ball.next.pos
 	
-while_not_over:	
+	mov al,[board_x]
+	push ax
+	call draw_bounce_board
+	xor ax,ax
+	
+	mov ah,[ball_x]	; load x pos
+	mov al,[ball_y]	; load y pos
+	mov ch,1	; speed of ball in x-dir
+	mov cl,1	; speed of ball in y-dir
+	mov dh,[ball_x_dir]	; positive or negative
+	mov dl,[ball_y_dir]	; positive or negative
+	
+	;; computer next pos of ball
 	push 0			;next-pos
 	push ax			;current-pos
 	push cx			;speed
@@ -531,192 +877,45 @@ while_not_over:
 	call next_pos
 	pop bx
 
-check_left:	
-	cmp byte dh,0
-	je ball_moving_left
-check_right:	
-	cmp byte dh,1
-	je jmp_ball_moving_right
-check_up:	
-	cmp byte dl,0
-	je jmp_ball_moving_up
-check_down:	
-	cmp byte dl,1
-	je jmp_ball_moving_down
-	jmp keep_moving
-
-;;; -----------------------------------------------------
-ball_moving_left:
-	push 0
-	call printnum
-	;; check left boundary
-	cmp byte bh,80		; if it becomes negative, very large number
-	jb is_brick_left
-	;; otherwise perform reflection
-	mov dh,1		;reflect x-axis only
-	mov ah,0
-	jmp keep_moving
-is_brick_left:	
-	;; tests wheter the next position is a brick
-	;; if lefthit or righthit reflect-x-axis
-	;; if tophit of bottomhit reflect-y-axis
-	
-	push si			;save state
+	;; if not brick, moveforward
+	;; else bounce
 	push 0			;
 	push bx			; testing next pos
 	call brick_test
-	pop si
-	cmp si,1		; 1:true
-	pop si			; restore state
-	jne check_right
+	pop ax			; flag
+	cmp ax,1		; 1:true
+	je it_is_brick
+	;; perform boundry test
 
-	push 100
-	call printnum
-	;; collision with brick has occured
-	;; determin collision direction
-bounce_on_brick:		
-	cmp byte dl,0			; if ball moving up
-	jne brick_is_below
-	push ax			;store state
-	sub al,1
-	push 0			; pass by ref
-	push ax
-	call brick_test
-	pop ax
-	cmp ax,0
-	pop ax			;restore the state of ax
-	je ref_x
-	jmp ref_y
-ref_x:
-	push ax
-	mov ah,0x1
-	xor dh,ah
-	pop ax
-	;; mov ax,bx		; vulnerable
-	jmp keep_moving
-ref_y:
-	push ax
-	mov al,0x1		; masking for 0 and 1
-	xor dl,al
-	pop ax
-	;; 	mov ax,bx
-	jmp keep_moving
 	
-brick_is_below:
-	push ax
-	add al,1
-	push 0
-	push ax
-	call brick_test
-	pop ax
-	cmp ax,0
-	pop ax
-	je ref_x
-	jmp ref_y
+	mov ah,[ball_x]		; refresh ax
+	mov al,[ball_y]
 
-ball_moving_right:
-	push 1
-	call printnum
-	;; check right boundary
-	cmp byte bh,79		; if it cross right boundary
-	jb is_brick_right
-	;; otherwise perform reflection
-	mov dh,0		;reflect x-axis only
-	mov ah,79
-	mov bh,79
-	jmp keep_moving
-	
-;;; ------------- to handle far jump error
-jmp_check_left:
-	jmp check_left
-jmp_check_right:
-	jmp check_right
-
-jmp_check_up:
-	jmp check_up
-
-jmp_check_down:
-	jmp check_down
-jmp_keep_moving:
-	jmp keep_moving
-jmp_ball_moving_left:
-	jmp ball_moving_left
-jmp_ball_moving_right:
-	jmp ball_moving_right
-jmp_ball_moving_up:
-	jmp ball_moving_up
-jmp_ball_moving_down:
-	jmp ball_moving_down
-jmp_bounce_on_brick:
-	jmp bounce_on_brick
-	
-is_brick_right:	
-	;; tests wheter the next position is a brick
-	;; if lefthit or righthit reflect-x-axis
-	;; if tophit of bottomhit reflect-y-axis
-	
-	push si			;save state
-	push 0			;
 	push bx
-	call brick_test
-	pop si
-	cmp si,1		; 1:true
-	pop si			; restore state
-	jne check_up
-	jmp bounce_on_brick
+	call handle_refs	;handle reflections
 
-ball_moving_up:
-	push 3
-	call printnum
-	cmp byte bl,25		; if it becomes negative, very large number
-	;; 	jb check_right
-	jb is_brick_on_top
-	;; otherwise perform reflection
-	mov dh,1		;reflect x-axis only
-	mov ah,0
-	mov bh,0
-	jmp keep_moving
+	;; or brick, hence move forward
 	
-is_brick_on_top:
-	;; tests wheter the next position is a brick
-	;; if lefthit or righthit reflect-x-axis
-	;; if tophit of bottomhit reflect-y-axis
-	
-	push si			;save state
-	push 0			;
-	push bx
-	call brick_test
-	pop si
-	cmp si,1		; 1:true
-	pop si			; restore state
-	jne  check_down
-	jmp  jmp_bounce_on_brick
+	jmp all_cases_handled
 
-ball_moving_down:
-	push 4
-	call printnum
-	;; check lower boundary
-	cmp byte bl,25		; if it becomes negative, very large number
-	jb is_brick_on_bottom
-	;; otherwise perform reflection
-	mov dl,0		;reflect x-axis only
-	mov al,24
- 	jmp keep_moving
+it_is_brick:
 	
-is_brick_on_bottom:	
-	push si			;save state
-	push 0			;
+	mov ah,[ball_x]		; ball to draw
+	mov al,[ball_y]		; load ball.xy before overwrite;
+	call bounce_on_brick
 	push bx
-	call brick_test
-	pop si
-	cmp si,1		; 1:true
-	pop si			; restore state
-	jne keep_moving
-	jmp jmp_bounce_on_brick
+	call destroy_brick
 	
-keep_moving:
-	push 101
-	call printnum
+all_cases_handled:
+	;; push ax			;pos of ball
+	;; push 40			;pos of board
+	;; ;; call printnum
+	;; call draw_ball_board
+
+	;; push ax
+	;; in al,0x60
+	;; pop ax
+	
 	push 0x07		;white color
 	mov bh,0x00			;
 	mov bl,ah			;
@@ -726,16 +925,14 @@ keep_moving:
 	push bx
 	call draw_ball
 
-	;; 	call delay
 	call delay
-	
-	push ax			;store state
-	mov ah, 0
-	int 0x16 
-	;; cmp al, 27
-	 pop ax			;retreiv state
 
-	;; delete ball after delay
+	push ax
+	mov ah, 0
+ 	int 0x16
+	pop ax
+
+	;; 	delete ball after delay
 	push 0x00		;		black color same as screen background
 	mov bh,0x00
 	mov bl,ah			
@@ -745,31 +942,9 @@ keep_moving:
 	push bx
 	call draw_ball
 
-	push ax
-	call destroy_brick
-	
-	push 40			;x-pos of board, y=25
-	call draw_bounce_board
-
-	;; continue game
-	push 0			;next-pos
-	push ax			;current-pos
-	push cx			;speed
-	push dx			;direction
-	call next_pos
-	pop bx
-	mov ax,bx		; pass next pos to ax
-	;; bh = ah +/- ch
-	;; bl = al +/- cl
-
-	;; push ax
-	;; call destroy_brick
-	;; push ax			;store state
-	;; mov ah, 0
-	;; int 0x16 
-	;; cmp al, 27
-	;; pop ax			;retreiv state
-	;; je exit_game
+	mov ah,[life]
+	cmp byte ah,0
+	je exit_game
 	jmp while_not_over
 	
 exit_game:
@@ -782,41 +957,46 @@ exit_game:
 	ret
 
 
+
 	;; =============================== main		
 start:
 	;; stack[length,height,fill_col,pos_x,pos_y
+
 	call clearScreen
 	call reset_game
 	call start_game
+
 	
-	;; hook keyboard int
+	;; xor bx,bx
+	;; ;; call ref_x_wall
+	;; mov bx,[ball_y]
+	;; push bx
+	;; call printnum
+	
 	;; xor ax, ax
-	;; mov es, ax
+	;; mov es, ax ; point es to IVT base
+
+	;; mov ax,[es:9*4]
+	;; mov [oldisr],ax
+	;; mov ax,[es:9*4+2]
+	;; mov [oldisr+2],ax
+	
+	;; cli ; disable interrupts
+	;; mov word [es:9*4], kbisr; store offset at n*4
+	;; mov [es:9*4+2], cs ; store segment at n*4+2
+	;; sti ; enable interrupts
+
+
+
+
+end_of_game:
+	
+	;; mov ax,[oldisr]
+	;; mov bx,[oldisr+2]
 	;; cli
-	;; mov word [es:9*4],kbisr
-	;; mov [es:9*4+2],cs
+	;; mov [es:9*4],ax
+	;; mov [es:9*4+2],bx
 	;; sti
 
-
-	;; 	call start_game		;
-	;; call clearScreen
-;; stop:
-;; 	call delay
-;; 	jmp stop
-	;; mov ax,0x07 
-	;; push ax
-	;; mov ax,1
-	;; push ax
-	;; push 79
-	;; push ax
-	;; call draw_ball
-
-	;; push 0
-	;; push 0x2800
-	;; push 0x0203
-	;; push 0x0001
-	;; call next_pos
-	;; pop ax
-	
 	mov ax, 0x4c00
 	int 0x21
