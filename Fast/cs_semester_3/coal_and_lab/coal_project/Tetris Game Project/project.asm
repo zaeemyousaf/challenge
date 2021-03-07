@@ -1,4 +1,4 @@
-	;; l19-1196 BCS-3E
+      	;; l19-1196 BCS-3E
 	;; Code of project phase-1
 	;; in future I would use interrupt
 	
@@ -10,21 +10,6 @@ moving_up:	db 'moving upside'
 moving_down:	db 'moving down'
 looping:	db 'it is in loop'
 
-	
-;; kbisr:
-;; 	pusha
-;; 	mov ax, 0xb800
-;; 	mov es,ax
-;; 	in al, 0x60
-;; 	cmp al, 0x2a
-;; 	mov byte [es:0], 'L'
-;; 	cmp al,0x36
-;; 	mov byte [es:0], 'R'
-;; 	mov al,0x20
-;; 	out 0x20,al
-;; 	popa
-	;; 	iret
-	
 printnum:
 	push bp
 	mov bp,sp
@@ -65,6 +50,20 @@ nextpos:
 	pop es
 	pop bp
 	ret 2	
+
+;; kbisr:
+;; 	pusha
+;; 	mov ax, 0xb800
+;; 	mov es,ax
+;; 	in al, 0x60
+;; 	cmp al, 0x2a
+;; 	mov byte [es:0], 'L'
+;; 	cmp al,0x36
+;; 	mov byte [es:0], 'R'
+;; 	mov al,0x20
+;; 	out 0x20,al
+;; 	popa
+;; 	iret
 	
 clearScreen:
 	push bp
@@ -521,7 +520,7 @@ start_game:
 	mov cl,bl		; y-speed
 	;; ax hols ball.xy
 	mov ah,40	      ; ball.x
-	mov al,24	      ; ball.y
+	mov al,7	      ; ball.y
 	;; bx holds the ball.next.pos
 	
 while_not_over:	
@@ -535,8 +534,21 @@ while_not_over:
 check_left:	
 	cmp byte dh,0
 	je ball_moving_left
+check_right:	
+	cmp byte dh,1
+	je jmp_ball_moving_right
+check_up:	
+	cmp byte dl,0
+	je jmp_ball_moving_up
+check_down:	
+	cmp byte dl,1
+	je jmp_ball_moving_down
+	jmp keep_moving
 
+;;; -----------------------------------------------------
 ball_moving_left:
+	push 0
+	call printnum
 	;; check left boundary
 	cmp byte bh,80		; if it becomes negative, very large number
 	jb is_brick_left
@@ -544,8 +556,7 @@ ball_moving_left:
 	mov dh,1		;reflect x-axis only
 	mov ah,0
 	jmp keep_moving
-is_brick_left:
-	
+is_brick_left:	
 	;; tests wheter the next position is a brick
 	;; if lefthit or righthit reflect-x-axis
 	;; if tophit of bottomhit reflect-y-axis
@@ -557,18 +568,18 @@ is_brick_left:
 	pop si
 	cmp si,1		; 1:true
 	pop si			; restore state
-	;; 	jne check_right
-	je keep_moving
-	jmp bounce_on_brick
+	jne check_right
+
+	push 100
+	call printnum
 	;; collision with brick has occured
 	;; determin collision direction
 bounce_on_brick:		
 	cmp byte dl,0			; if ball moving up
-	;; 	jne brick_is_below
-	jne keep_moving
+	jne brick_is_below
 	push ax			;store state
 	sub al,1
-	push 0			;pass by reference
+	push 0			; pass by ref
 	push ax
 	call brick_test
 	pop ax
@@ -576,30 +587,25 @@ bounce_on_brick:
 	pop ax			;restore the state of ax
 	je ref_x
 	jmp ref_y
-
 ref_x:
-
 	push ax
-	mov ah,0x01
+	mov ah,0x1
 	xor dh,ah
 	pop ax
 	;; mov ax,bx		; vulnerable
 	jmp keep_moving
 ref_y:
 	push ax
-	mov al,0x01		; masking for 0 and 1
+	mov al,0x1		; masking for 0 and 1
 	xor dl,al
 	pop ax
 	;; 	mov ax,bx
 	jmp keep_moving
 	
 brick_is_below:
-	push 100		;
-	call printnum
-	jmp keep_moving
-
 	push ax
 	add al,1
+	push 0
 	push ax
 	call brick_test
 	pop ax
@@ -608,7 +614,109 @@ brick_is_below:
 	je ref_x
 	jmp ref_y
 
-keep_moving:	
+ball_moving_right:
+	push 1
+	call printnum
+	;; check right boundary
+	cmp byte bh,79		; if it cross right boundary
+	jb is_brick_right
+	;; otherwise perform reflection
+	mov dh,0		;reflect x-axis only
+	mov ah,79
+	mov bh,79
+	jmp keep_moving
+	
+;;; ------------- to handle far jump error
+jmp_check_left:
+	jmp check_left
+jmp_check_right:
+	jmp check_right
+
+jmp_check_up:
+	jmp check_up
+
+jmp_check_down:
+	jmp check_down
+jmp_keep_moving:
+	jmp keep_moving
+jmp_ball_moving_left:
+	jmp ball_moving_left
+jmp_ball_moving_right:
+	jmp ball_moving_right
+jmp_ball_moving_up:
+	jmp ball_moving_up
+jmp_ball_moving_down:
+	jmp ball_moving_down
+jmp_bounce_on_brick:
+	jmp bounce_on_brick
+	
+is_brick_right:	
+	;; tests wheter the next position is a brick
+	;; if lefthit or righthit reflect-x-axis
+	;; if tophit of bottomhit reflect-y-axis
+	
+	push si			;save state
+	push 0			;
+	push bx
+	call brick_test
+	pop si
+	cmp si,1		; 1:true
+	pop si			; restore state
+	jne check_up
+	jmp bounce_on_brick
+
+ball_moving_up:
+	push 3
+	call printnum
+	cmp byte bl,25		; if it becomes negative, very large number
+	;; 	jb check_right
+	jb is_brick_on_top
+	;; otherwise perform reflection
+	mov dh,1		;reflect x-axis only
+	mov ah,0
+	mov bh,0
+	jmp keep_moving
+	
+is_brick_on_top:
+	;; tests wheter the next position is a brick
+	;; if lefthit or righthit reflect-x-axis
+	;; if tophit of bottomhit reflect-y-axis
+	
+	push si			;save state
+	push 0			;
+	push bx
+	call brick_test
+	pop si
+	cmp si,1		; 1:true
+	pop si			; restore state
+	jne  check_down
+	jmp  jmp_bounce_on_brick
+
+ball_moving_down:
+	push 4
+	call printnum
+	;; check lower boundary
+	cmp byte bl,25		; if it becomes negative, very large number
+	jb is_brick_on_bottom
+	;; otherwise perform reflection
+	mov dl,0		;reflect x-axis only
+	mov al,24
+ 	jmp keep_moving
+	
+is_brick_on_bottom:	
+	push si			;save state
+	push 0			;
+	push bx
+	call brick_test
+	pop si
+	cmp si,1		; 1:true
+	pop si			; restore state
+	jne keep_moving
+	jmp jmp_bounce_on_brick
+	
+keep_moving:
+	push 101
+	call printnum
 	push 0x07		;white color
 	mov bh,0x00			;
 	mov bl,ah			;
@@ -620,13 +728,13 @@ keep_moving:
 
 	;; 	call delay
 	call delay
-
+	
 	push ax			;store state
 	mov ah, 0
 	int 0x16 
 	;; cmp al, 27
 	 pop ax			;retreiv state
-	
+
 	;; delete ball after delay
 	push 0x00		;		black color same as screen background
 	mov bh,0x00
@@ -656,12 +764,12 @@ keep_moving:
 
 	;; push ax
 	;; call destroy_brick
-	;; je exit_game
 	;; push ax			;store state
-	;; shr ax,8
-	;; push ax
-	;; call printnum
-	;; pop ax
+	;; mov ah, 0
+	;; int 0x16 
+	;; cmp al, 27
+	;; pop ax			;retreiv state
+	;; je exit_game
 	jmp while_not_over
 	
 exit_game:
@@ -681,7 +789,6 @@ start:
 	call reset_game
 	call start_game
 	
-	
 	;; hook keyboard int
 	;; xor ax, ax
 	;; mov es, ax
@@ -693,6 +800,23 @@ start:
 
 	;; 	call start_game		;
 	;; call clearScreen
+;; stop:
+;; 	call delay
+;; 	jmp stop
+	;; mov ax,0x07 
+	;; push ax
+	;; mov ax,1
+	;; push ax
+	;; push 79
+	;; push ax
+	;; call draw_ball
+
+	;; push 0
+	;; push 0x2800
+	;; push 0x0203
+	;; push 0x0001
+	;; call next_pos
+	;; pop ax
 	
 	mov ax, 0x4c00
 	int 0x21
