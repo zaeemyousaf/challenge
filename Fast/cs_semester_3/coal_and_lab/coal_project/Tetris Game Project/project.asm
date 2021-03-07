@@ -1,3 +1,4 @@
+	;; detect game end
 	;; random function has been overwritten by timer
 	;; timer interrupt
 	;; bug fix (handle refs: push bp)
@@ -12,7 +13,7 @@ old_kbisr:	dd 0
 old_tmisr:	dd 0
 	
 ball_x:	db 40			; init x pos of ball
-ball_y:	db 24			; just above the bounce board
+ball_y:	db 23			; just above the bounce board
 board_x:	db 40		; in mid of screen; y is fixed
 ball_x_dir:	db 1			; 0: left; 1:right
 ball_y_dir:	db 0			; 0: up; 1:down
@@ -23,14 +24,65 @@ board_length:	db 20
 score:	dw 0
 game_status:	db 0		; initially not running
 	;; pressing enter key, switches it on
+	;; game_status:2 means that game is over
 ;;; -----------notifications
-out_msg:	db 'OUT',0
+out_msg:	db 'L O S T',0
+you_won:	db 'H U R R A H! Y O U W O N',0
 play_again_msg:	db 'press space bar to play again',0
 instruction1:	db ' ',0
 life_msg:	db 'Life: ',0
 score_msg:	db 'Score: ',0
 time_msg:	db 'Elapsed time: ',0
+milliseconds:	dw 0
+seconds:	db 0		; time elapsed is in seconds
 
+any_brick_left:
+	;; this functions chechs everytime
+	;; whether game has ended or not
+	;; is there any char other than deleted one
+	;; between line 2 and line 10
+	push ax
+	push bx
+	push cx
+	push dx
+	push es
+	push di
+	
+
+	xor ax,ax
+	mov ax,0xb800
+	mov es,ax
+	xor di,di
+	;; 	mov di,480		;2(3*80)
+	mov di,480		;2(3*80)
+	xor bx,bx		; game is over
+check_every_pixel:
+	mov ax,[es:di]
+	;; cmp ah,0x00		; is black color
+	cmp byte al,' '		; is black color
+	je check_next
+	mov bx,1		; game not over
+	jmp end_checking
+check_next:
+	add di,2		; visit next pixel
+	cmp di, 1600		;
+	jb check_every_pixel
+end_checking:
+	cmp bx,0		;
+	je game_is_over
+	jmp leave_routine
+game_is_over:
+	mov byte [game_status],2
+leave_routine:
+
+	pop di
+	pop es
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+	
 printnum:
 	push bp
 	mov bp,sp
@@ -230,6 +282,8 @@ game_out:
 	cmp byte al,0
 	jne play_again
 	;; call end_of_game
+	cmp al,3
+	jb play_again
 	mov byte [game_out_flag], 1
 	jmp end_ref_y_wall
 play_again:	
@@ -405,24 +459,30 @@ draw_rectangle:
 	push bp
 	mov bp,sp
 	push ax
-	push di
-	push cx
 	push bx
+	push cx
 	push dx
+	push es
+	push di
 	
 	mov ax,0xb800
 	mov es,ax
 	mov ax,160		;one line has 80 pixels
 	mov bx,[bp+4]
 	sub bx,1		; line-1
-	mul bx			; 80*(line_number-1)+col
+	mul bx			; 80*(line_number-1)
 
 	mov di,[bp+6]		;column
 	;; 	sub di,1		; because real is zero based 
 	shl di,1		;word-size
 	add di,ax		; actual initial position of rectangle
-	mov ah,[bp+8]		; fill color
-	mov al,223		;block is made up of blocks with color 		background
+
+	mov ax,[bp+8]		; fill color
+	shl ax,8		; lower byte is empty
+	mov al,223		
+				;block is made up of blocks with color 		background
+	;; mov ah,[bp+8]
+	;; mov al,223		
 	
 	mov bx,0
 height:
@@ -440,10 +500,11 @@ height:
 	cmp bx,[bp+10]
 	jb height
 
-	pop dx
-	pop bx
-	pop cx
 	pop di
+	pop es
+	pop dx
+	pop cx
+	pop bx
 	pop ax
 	pop bp
 	ret 10
@@ -455,7 +516,8 @@ draw_bricks_layer:		;e.g function(layer1,color)
 	push bx
 	push cx
 	push dx
-	
+	push es
+	push di
 ;; 	;; on even line leave space on left
 ;; 	xor ax,ax
 ;; 	mov ax,[bp+6]		;
@@ -504,6 +566,9 @@ last_brick_remaining:
 	sub ax,cx
 
 	sub ax,4		; creating gape from right
+	cmp ax,0
+	je zero_length
+	
 	push ax			;length
 	mov ax,1
 	push ax			;height of rectangle
@@ -513,7 +578,10 @@ last_brick_remaining:
 	mov ax,[bp+6]		;line number as y pos
 	push ax
 	call draw_rectangle
+zero_length:
 
+	pop di
+	pop es
 	pop dx
 	pop cx
 	pop bx
@@ -526,6 +594,8 @@ reset_game:
 	push bx
 	push cx
 	push dx
+	push es
+	push di
 	
 	call clearScreen
 	
@@ -540,7 +610,7 @@ while:
 	sub ax,4	;top space color correction
 	sal ax,4	;make new color (works upto
 	push ax
-	add ax,4	;
+	;; 	add ax,4	;
 
 	call draw_bricks_layer
 	inc cx
@@ -548,6 +618,7 @@ while:
 	jb while
 
 	;; draw ball over the board
+	push 'o'		; shape char
 	push 0x07		;white color same as screen background
 	mov bh,0x00
 	mov byte bl,[ball_x]			
@@ -576,7 +647,8 @@ end_of_set_x:
 	;; call display_life	
 	;; call display_score	;
 	;; call display_time
-	
+	pop di
+	pop es
 	pop dx
 	pop cx
 	pop bx
@@ -592,7 +664,7 @@ draw_bounce_board:
 	push cx
 	push dx
 	push es
-	push si
+	push di
 	
 	;; pass argument to draw_rectangle
 	xor ax,ax
@@ -606,7 +678,7 @@ draw_bounce_board:
 	push 25		;y-pos, last row
 	call draw_rectangle
 
-	pop si
+	pop di
 	pop es
 	pop dx
 	pop cx
@@ -616,13 +688,18 @@ draw_bounce_board:
 	ret 4
 
 draw_ball:
-	;; [color,x,y,call,bp
+	;; [shape_char,color,x,y,call,bp
+	;; draw the ball
+	;; and clear the ball as well
+	;; by repainting
 	push bp
 	mov bp,sp
 	push ax
 	push bx
 	push cx
 	push dx
+	push es
+	push di
 	
 	mov ax,0xb800
 	mov es,ax
@@ -635,20 +712,23 @@ draw_ball:
 	mov di,0		;points to left-top
 	add di,ax		;the actual pos of ball
 
+	mov ax,[bp+10]		;shape char will be in lower byte
 	mov ah,[bp+8]		; color
-	mov al,'o'
+	;; mov al,'o'
 	;; 
 
 	mov [es:di],ax
 	;; add di,2
 	;; mov [es:di],ax
 
+	pop di
+	pop es
 	pop dx
 	pop cx
 	pop bx
 	pop ax
 	pop bp
-	ret 6
+	ret 8
 
 next_pos:
 	;; [0,ax,cx,dx,call,bp
@@ -658,6 +738,8 @@ next_pos:
 	push bx
 	push cx
 	push dx
+	push es
+	push di
 	
 	mov ax,[bp+8]		; ball pos
 	mov bx,ax		; nex-pos
@@ -677,7 +759,10 @@ check_y:
 y_pos:
 	add bl,cl
 cases_handled:	
-	mov [bp+10],bx		;	
+	mov [bp+10],bx		;
+
+	pop di
+	pop es
 	pop dx
 	pop cx
 	pop bx
@@ -695,7 +780,7 @@ destroy_brick:
 	push cx
 	push dx
 	push es
-	push si
+	push di
 
 	mov ax,0xb800
 	mov es,ax
@@ -713,7 +798,6 @@ destroy_brick:
 	mov di,ax
 	mov cx,di		;
 	add cx,2		;this side will be cleared by delete_right
-
 
 delete_left:
 	xor ax,ax
@@ -741,7 +825,7 @@ delete_further:
 	jmp delete_further		;
 eob:
 	;; end of brick
-	pop si
+	pop di
 	pop es
 	pop dx
 	pop cx
@@ -802,7 +886,6 @@ end_brick_test:
 	pop ax
 	pop bp
 	ret 2
-
 	
 handle_refs:
 	;; handle_refs(pos.xy)
@@ -815,6 +898,8 @@ handle_refs:
 	push bx
 	push cx
 	push dx
+	push es
+	push di
 	
 	mov ax,[bp+4]		; ball's next pos
 	;; x pos in higher byte
@@ -859,6 +944,8 @@ apply_x_ref:
 apply_y_ref:
 	call ref_y_wall
 end_boundray_ref:
+	pop di
+	pop es
 	pop dx
 	pop cx
 	pop bx
@@ -875,6 +962,13 @@ playisr:
 	push bx
 	push cx
 	push dx
+	push es
+	push di
+
+	xor ax,ax
+	mov al,[seconds]
+	inc ax
+	mov byte [seconds],al
 	
 	;; check game status
 	mov byte al,[game_status]
@@ -935,7 +1029,9 @@ all_cases_handled:
 
 	;; avoid destroying slider
 	;; clear ball previously drawn
-	push bx
+	push bx			;store state
+
+	push ' '		; empty char
 	push 0x00		; black color
 	mov bh,0x00			;
 	mov bl,ah			;
@@ -953,7 +1049,7 @@ all_cases_handled:
 	
 it_is_slider:	
 
-
+	push 'o'
 	push 0x07		;white color same as screen background
 	mov bh,0x00
 	mov byte bl,[ball_x]			
@@ -965,11 +1061,16 @@ it_is_slider:
 game_not_started:	
 	mov al,0x20
 	out 0x20,al
+
+
+	pop di
+	pop es
 	pop dx
 	pop cx
 	pop bx
 	pop ax
-	;; 	iret
+
+	iret
 	;; 	ret
 
 move_slider_isr:
@@ -1093,9 +1194,8 @@ no_clear:
 	pop cx
 	pop bx
 	pop ax
-	;; jmp far [cs:old_kbisr]
+	
 	iret			;
-	;; ret
 
 
 ;; hook_kbisr:
@@ -1187,6 +1287,27 @@ display_life:
 	pop ax
 	ret
 
+display_welcome:
+	;; it reads life from global variable
+	;; display label first
+	push ax
+	push bx
+	push cx
+	push dx
+	push es
+	push di
+	
+	call clearScreen
+	
+
+	pop di
+	pop es
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
 display_score:
 	;; it reads score from global variable
 	;; display label first
@@ -1236,7 +1357,77 @@ display_time:
 	mov ax, time_msg
 	push ax
 	call printstr
+
+	xor ax,ax
+	mov al,[game_status]
+	cmp al,0
+	je game_not_running
 	
+	push 0x4901
+	xor ax,ax
+	mov ax,[milliseconds]
+	inc ax
+	mov [milliseconds],ax
+
+	sub ax,1
+	mov bl,25		;18.18...
+	xor dx,dx
+	div bl
+	mov byte [seconds],al	;store the quetient
+	mov ah,0
+	push ax
+	call printnum
+game_not_running:	
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+display_out:
+	;; on exit, game status is analysed
+	;; and concluded whether win or lost
+	push ax
+	push bx
+	push cx
+	push dx
+
+	mov ax,40		; x pos center
+	push ax
+	mov ax,12
+	push ax			; top row
+
+	mov ax,4		; red color color
+	push ax
+	mov ax, out_msg
+	push ax
+	call printstr
+	
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+display_win:
+	;; on exit, game status is analysed
+	;; and concluded whether win or lost
+	push ax
+	push bx
+	push cx
+	push dx
+
+	mov ax,40		; x pos center
+	push ax
+	mov ax,12
+	push ax			; top row
+
+	mov ax,2		;color
+	push ax
+	mov ax, you_won
+	push ax
+	call printstr
+		
 	pop dx
 	pop cx
 	pop bx
@@ -1326,11 +1517,28 @@ my_loop:
 	call display_score	;
 	call display_time
 	call delay		;
-	;; 	call delay
-	;; xor ax,ax
-	;; mov al,[game_out_flag]
-	jmp my_loop
+	call delay		;
+	
+	call any_brick_left
+	
+	xor ax,ax
+	mov byte al,[life]
+	cmp al,0
+	jne my_loop
+	;; game is over now
+	call display_life	
+	call display_score	;
+	call display_time
 
+	xor ax,ax
+	mov al,[life]
+	cmp al,0
+	je display_out_msg
+	call display_win
+	jmp bye
+display_out_msg:
+	call display_out
+bye:	
 	;; unhook kbd interrupt
 	;; terminate with residing here
 	xor ax,ax
@@ -1350,6 +1558,6 @@ my_loop:
 
 	mov [es:8*4],ax
 	mov [es:8*4+2],bx
-	
+
 	mov ax, 0x4c00
 	int 0x21
