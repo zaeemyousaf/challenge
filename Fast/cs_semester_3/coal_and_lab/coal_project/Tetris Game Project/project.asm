@@ -1,4 +1,4 @@
-      	;; l19-1196 BCS-3E
+     	;; l19-1196 BCS-3E
 	;; Code of project phase-4
 	;; in future I would use interrupt
 	
@@ -16,8 +16,6 @@ life:	db 3				; initial 3 life
 ball_size:	db 1			; 2 char long
 game_out_flag:	db 0			; out when 1
 board_length:	db 80
-
-	
 
 
 kbisr:
@@ -467,11 +465,11 @@ draw_bricks_layer:		;e.g function(layer1,color)
 	div bh
 	cmp ah,0
 	je even_line
-	mov cx,1		;left most col
-	mov dx,1		; dx 1: even odd line
+	mov cx,0		;left most col
+	mov dx,4		; dx 1: even odd line
 	jmp while_incomplete
 even_line:
-	mov cx,0		;left most col
+	mov cx,4		;left most col
 	mov dx,0		; dx 0 means even line
 while_incomplete:
 	mov ax,cx
@@ -482,7 +480,7 @@ while_incomplete:
 	call short_delay	; to bring randomness
 	
 	push 0			; random is stored her
-	push 2
+	push 4
 	push 6			;it is max size of bricks
 	call random_in_range
 	pop ax			;length comes here
@@ -498,8 +496,8 @@ while_incomplete:
 	push ax
 	call draw_rectangle
 	;; update the length of wall
-	add cx,bx
-	add cx,1		;space between bricks
+	add cx,bx	
+	add cx,1		;space between bricks	
 	;; restoring the registers
 	jmp while_incomplete
 last_brick_remaining:
@@ -507,9 +505,9 @@ last_brick_remaining:
 	mov ax,80
 	sub ax,cx
 	
-	xor dx,0x1
-	sub ax,dx
-	
+	;; xor dx,0x1
+	;; sub ax,dx
+	sub ax,4
 	push ax			;length
 	mov ax,1
 	push ax			;height of rectangle
@@ -535,11 +533,14 @@ reset_game:
 	mov cx,0		; bricks starts from 
 while:	
 	mov ax,cx
-	add ax,1
+	add ax,5		;1+topspace
 	push ax		;first line number 1 not zero
-	shl ax,4	;make new color (works upto
 
+	sub ax,4	;top space color correction
+	shl ax,4	;make new color (works upto
 	push ax
+	add ax,4	;
+
 	call draw_bricks_layer
 	inc cx
 	cmp cx,4		; has 4 lines been printed
@@ -550,6 +551,7 @@ while:
 	pop bp
 	ret 
 draw_bounce_board:
+	;; (color,xloc)
 	push bp
 	mov bp,sp
 	push ax
@@ -564,7 +566,8 @@ draw_bounce_board:
 	mov al,[board_length]
 	push ax			;lenght of bounce board
 	push 1			;height
-	push 0x10		;color
+	mov ax,[bp+6]
+	push ax		;color
 	mov ax,[bp+4]		;x-pos
 	push ax
 	push 25		;y-pos, last row
@@ -577,7 +580,7 @@ draw_bounce_board:
 	pop bx
 	pop ax
 	pop bp
-	ret 2
+	ret 4
 
 draw_ball:
 	;; [color,x,y,call,bp
@@ -835,8 +838,8 @@ start_game:
 	push bx
 	push cx
 	push dx
-
-	;; 	call delay
+	
+;; 	call delay
 ;; 	call delay
 ;; 	push 0			;
 ;; 	push 0			; random direction
@@ -855,12 +858,6 @@ while_not_over:
 	xor bx,bx
 	xor cx,cx
 	xor dx,dx
-
-	
-	mov al,[board_x]
-	push ax
-	call draw_bounce_board
-	xor ax,ax
 	
 	mov ah,[ball_x]	; load x pos
 	mov al,[ball_y]	; load y pos
@@ -903,8 +900,6 @@ it_is_brick:
 	mov ah,[ball_x]		; ball to draw
 	mov al,[ball_y]		; load ball.xy before overwrite;
 	call bounce_on_brick
-	push bx
-	call destroy_brick
 	
 all_cases_handled:
 	;; push ax			;pos of ball
@@ -912,10 +907,13 @@ all_cases_handled:
 	;; ;; call printnum
 	;; call draw_ball_board
 
-	;; push ax
-	;; in al,0x60
-	;; pop ax
-	
+	push ax
+	in al,0x60
+	pop ax
+
+	push bx
+	call destroy_brick
+
 	push 0x07		;white color
 	mov bh,0x00			;
 	mov bl,ah			;
@@ -925,12 +923,21 @@ all_cases_handled:
 	push bx
 	call draw_ball
 
+	push ax
+	xor ax,ax
+	mov al,0x01
+	push ax
+	mov al,[board_x]
+	push ax
+	call draw_bounce_board
+	xor ax,ax
+	pop ax
 	call delay
 
-	push ax
-	mov ah, 0
- 	int 0x16
-	pop ax
+	;; push ax
+	;; mov ah, 0
+ 	;; int 0x16
+	;; pop ax
 
 	;; 	delete ball after delay
 	push 0x00		;		black color same as screen background
@@ -942,6 +949,14 @@ all_cases_handled:
 	push bx
 	call draw_ball
 
+	xor ax,ax
+	mov al,0x00
+	push ax
+	mov al,[board_x]
+	push ax
+	call draw_bounce_board
+	xor ax,ax
+	
 	mov ah,[life]
 	cmp byte ah,0
 	je exit_game
