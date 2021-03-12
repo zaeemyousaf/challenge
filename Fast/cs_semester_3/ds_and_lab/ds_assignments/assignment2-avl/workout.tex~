@@ -1,0 +1,71 @@
+% Created 2020-11-29 Sun 22:51
+% Intended LaTeX compiler: pdflatex
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{grffile}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{textcomp}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\author{submitted to: Amina Khan (DS assignment 2)}
+\date{FAST (NUCES) Lahore}
+\title{ZAEEM YOUSAF (l19-1196 3E2)}
+\hypersetup{
+ pdfauthor={submitted to: Amina Khan (DS assignment 2)},
+ pdftitle={ZAEEM YOUSAF (l19-1196 3E2)},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={Emacs 26.1 (Org mode 9.1.9)}, 
+ pdflang={English}}
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Q1/B Time complexity of iterative mirror}
+\label{sec:orgade3813}
+ans: \textbf{O(n)}
+\subsection{Detail}
+\label{sec:org1f0e90e}
+all right nodes were pushed and poped O(log n)
+each time, a poped nodes' children were swaped and total time O(n)
+max height of stack was the n/2.
+Tree was traversed from top to bottom while each time moving left and storing the right children to be treated afterward.
+*Total O(log\(_{\text{2}}\) n) + O(n) = O(n)*p
+
+\section{Q2/B Time complexity of spiral order travesal}
+\label{sec:org8a9bb7b}
+ans: \textbf{O(n)+O(n) = O(n)}
+\subsection{Detail}
+\label{sec:orgdab6b89}
+   Two Stacks were used. 'left\(_{\text{to}}\)\(_{\text{right}}\)' and 'right\(_{\text{to}}\)\(_{\text{left}}\)' traversal was made level vise to push all elements from left to right and then right to left.
+O(n) was for traversal as each node was visited and O(n) was for pushing and then poping each element.
+
+\section{Q4/B Time complexity of flattening a Binary Tree}
+\label{sec:orga2f12f4}
+ans: \textbf{O(n)}
+\subsection{Detail}
+\label{sec:org4c854d5}
+each node was visited recursively preorder and that node was inserted in \textbf{linkList} ojbect. Note: Each node was inserted instead of data which was more difficult but it gives the real picture of how the tree was flattened.
+Therefore my flattened list looks like
+\section{Q5/B Time complexity of joining Two AVL Trees}
+\label{sec:org0ae9133}
+ans: \textbf{O(h\(_{\text{1}}\)+h\(_{\text{2}}\))} where h\(_{\text{1}}\) is the hight of T\(_{\text{1}}\) and h\(_{\text{2}}\) is the height of T\(_{\text{2}}\)
+Note: T\(_{\text{2}}\) is not merged node by node, Whole tree is attached at once almost
+\subsection{Detail}
+\label{sec:orgaf3c856}
+T\(_{\text{2}}\)'s smallest Element was broken and made root of new tree T\(_{\text{3}}\).
+Then T\(_{\text{1}}\) was traversed right until height becomes = h\(_{\text{2}}\)
+Then T\(_{\text{1}}\) was broken in two parts at that that root and was connected to left of T\(_{\text{3}}\)
+T\(_{\text{2}}\) was attached on the right side of T\(_{\text{3}}\)
+Then that T\(_{\text{3}}\) was attached to parent of broken node in T\(_{\text{1}}\)
+Node breaking is constant and this algorithm is very efficient for AVL trees with greater hieghts.
+O(h\(_{\text{1}}\)+h\(_{\text{2}}\)) is just due to traversal for the appropriate place where one T\(_{\text{2}}\) could be attached.
+\end{document}

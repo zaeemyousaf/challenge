@@ -1,0 +1,22 @@
+#include <iostream>
+#include "student_avl.h"
+using namespace std;
+int main(){
+  AVL stdTree;
+  char name1[] = "Zaeem Yousaf";
+  char name2[] = "askar hussain";
+  char name3[] = "shehmeer";
+  stdTree.insertStudent(2,name1,2.5);
+  stdTree.insertStudent(1,name2,2.5);
+  stdTree.insertStudent(3,name3,2.5);
+  stdTree.inorderPrintStudentRollNumbers();
+  return 0;
+// popuateStudentTree("students.txt", stdTree);
+// cout << endl << endl << "Tree Before Deletion: " << endl;
+// stdTree.inorderPrintStudentRollNumbers();
+// //delete any student
+// cout << endl << endl << "Tree after Deletion: " << endl;
+// stdTree.inorderPrintStudentRollNumbers();
+// cout<<"Data of student, whose roll number is 254, is as follows: "<< endl;
+// cout << *stdTree.search(254);
+}

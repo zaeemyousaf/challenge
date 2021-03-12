@@ -1,0 +1,11 @@
+compile_run: assignment1.o
+	g++ -g assignment1.o -o output.exe
+	./output.exe
+compile: assignment1.cpp
+	g++ -gc assignment1.cpp -o assignment1.o
+run:	output.exe
+	./output.exe
+
+clean:	assignment1.o
+	rm *.o
+
