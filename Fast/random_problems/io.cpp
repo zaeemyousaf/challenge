@@ -1,3 +1,4 @@
+// reading and writing to a file
 #include <iostream>
 using namespace std;
 
